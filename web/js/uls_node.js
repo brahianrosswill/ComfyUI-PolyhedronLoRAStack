@@ -599,7 +599,7 @@ function showGroupModePopup(group, currentMode, currentDareVariant, currentTrim,
 
     wrap.appendChild(makeToggle({
         color: "#ff9f40", label: "Trim — keep strongest",
-        hint: "keeps each LoRA's strongest parts and drops the weakest — clears the mush when you stack many",
+        hint: "keeps each LoRA's strongest parts and drops the weakest — reduces interference when you stack many",
         get: () => trimOn,
         set: (v) => { trimOn = v; onToggle?.("trim", v); },
         disabled: false,

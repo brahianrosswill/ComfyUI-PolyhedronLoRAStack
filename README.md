@@ -3,10 +3,10 @@
 **Group-aware LoRA management for ComfyUI — built for workflows that run 10–25 LoRAs at once.**
 
 Most LoRA loaders are fine for two or three LoRAs. Stack fifteen and you get the familiar
-"mush": washed-out detail, concepts cancelling each other, no way to see what is even active.
+multi-LoRA interference: washed-out detail, concepts cancelling each other, no way to see what is even active.
 Polyhedron LoRA Stack treats a big LoRA stack like a total-conversion mod for your model —
 organised in semantic groups, applied in a defined order, with per-group merge modes and two
-cleanup switches that fight the mush directly.
+cleanup switches that fight that interference directly.
 
 Model-agnostic backend: WAN 2.1 / 2.2, FLUX, SDXL, SD 1.5 — no model-specific assumptions.
 
@@ -161,7 +161,7 @@ preview image and trigger words from the Civitai API (SFW-strict filtering, capp
 ## Documentation
 
 The full illustrated user manual (34 pages, every node, panel and switch) ships in this
-repository: [`docs/Polyhedron_LoRA_Stack_Documentation_v124.pdf`](docs/Polyhedron_LoRA_Stack_Documentation_v124.pdf)
+repository: [`docs/Polyhedron_LoRA_Stack_Documentation_v125.pdf`](docs/Polyhedron_LoRA_Stack_Documentation_v125.pdf)
 
 ## Links
 

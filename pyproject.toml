@@ -1,7 +1,7 @@
 [project]
 name = "polyhedron-lora-stack"
-version = "2.68.0"
-description = "Group-aware LoRA management for ComfyUI: stack 10-25 LoRAs with per-group merge modes (SEQ/CONCAT/DARE), Trim & Resolve cleanup switches against multi-LoRA mush, thumbnails, trigger words, Civitai fetch, a dedicated Accelerator engine and a passive Merge Analyzer."
+version = "2.69.0"
+description = "Group-aware LoRA management for ComfyUI: stack 10-25 LoRAs with per-group merge modes (SEQ/CONCAT/DARE), Trim & Resolve cleanup switches against multi-LoRA interference, thumbnails, trigger words, Civitai fetch, a dedicated Accelerator engine and a passive Merge Analyzer."
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
 
@@ -23,7 +23,7 @@ cli = [
 
 [project.urls]
 Repository = "https://github.com/PolyhedronAI/ComfyUI-PolyhedronLoRAStack"
-Documentation = "https://github.com/PolyhedronAI/ComfyUI-PolyhedronLoRAStack/blob/main/docs/Polyhedron_LoRA_Stack_Documentation_v124.pdf"
+Documentation = "https://github.com/PolyhedronAI/ComfyUI-PolyhedronLoRAStack/blob/main/docs/Polyhedron_LoRA_Stack_Documentation_v125.pdf"
 "Bug Tracker" = "https://github.com/PolyhedronAI/ComfyUI-PolyhedronLoRAStack/issues"
 
 [tool.comfy]

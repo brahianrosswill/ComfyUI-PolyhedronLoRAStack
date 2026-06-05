@@ -24,7 +24,7 @@ Design notes:
                  element — drop individual tensor elements (classic paper)
   - Cleanup switches (modifiers beside the four modes, CONCAT/DARE only):
       Trim     drop the weakest rank-channels per LoRA by magnitude before
-               merge (deterministic; against the "many quiet LoRAs → mush"
+               merge (deterministic; against the "many quiet LoRAs → interference"
                pile-up). Output stays low-rank.
       Resolve  TIES sign-election across conflicting LoRAs, then a truncated
                SVD re-pack to low-rank so it rejoins the same hand-off.
@@ -378,7 +378,7 @@ def _trim_keep_fraction(n: int) -> float:
     """Fraction of rank-channels to KEEP for the deterministic magnitude trim
     (the 'Trim' cleanup switch). Gentle, group-scaled — the more LoRAs are
     stacked concurrently, the more aggressively the weak tail is pruned to keep
-    the merge from turning into background-noise mush:
+    background-noise interference out of the merge:
         2 LoRAs → ~0.95, 10 → ~0.73, 15+ → floor 0.60.
     Empirically reasonable starting point; calibrate against real runs."""
     if n <= 1:
@@ -455,7 +455,7 @@ def _resolve_sign_elect(bs, as_, out_dim: int, in_dim_flat: int,
       1. Elect a sign per weight element from the SUM of all per-LoRA deltas.
       2. Disjoint mean: average ONLY the LoRAs whose sign agrees with the elected
          one at that element; the sign-fighting contributions are dropped (this is
-         what cuts the "many LoRAs cancel to mush" effect).
+         what cuts the "many LoRAs cancel each other out" effect).
       3. Re-pack the resolved full delta as a LOW-RANK LoRA via a truncated
          randomized SVD (rank = sum of input ranks, i.e. CONCAT footprint), so the
          result rejoins the standard load_lora hand-off completely unchanged.
