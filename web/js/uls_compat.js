@@ -46,7 +46,7 @@ import { app } from "../../scripts/app.js";
 // change — they are deliberately NOT in this set.
 const POLY_CANVAS_NODES = new Set(["UltimateLoraStack", "ULSAccelerator"]);
 
-const PLUGIN_VERSION = "v269";
+const PLUGIN_VERSION = "v270";
 const GRACE_MS       = 3000;  // time to allow at least one draw before judging
 
 // ── Best-effort environment snapshot (all reads guarded) ──────────────────

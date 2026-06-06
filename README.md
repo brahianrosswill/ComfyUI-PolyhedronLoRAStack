@@ -126,6 +126,32 @@ The same single-line pattern works for FLUX, SDXL and SD 1.5.
 
 ---
 
+## Example workflows
+
+Four ready-to-load starter workflows ship in
+[`example_workflows/`](example_workflows/) and appear in ComfyUI's template
+browser (**Workflow → Browse Templates**) under this pack's name once it is
+installed:
+
+| Template | Sampler path | Accelerator engine |
+|---|---|---|
+| `polyhedron_lora_stack_ksampler_base` | native KSampler (Advanced), dual HIGH/LOW | off |
+| `polyhedron_lora_stack_ksampler_lightning` | native KSampler (Advanced), dual HIGH/LOW | Wan2.2-Lightning v1.1, 8-step preset (4/4 split, CFG 1, shift 5) |
+| `polyhedron_lora_stack_wanvideo_base` | WanVideoWrapper (kijai), dual HIGH/LOW | off |
+| `polyhedron_lora_stack_wanvideo_accelerator` | WanVideoWrapper (kijai), dual HIGH/LOW | on |
+
+Compact WAN 2.2 dual-noise graphs built around the Stack: a grouped canvas
+(models → HIGH/LOW LoRA lanes → prompts → sampling → output, passive
+diagnostics below), neutral prompts, fixed seeds. Stack and Engine rows ship
+as **disabled examples** with showcase group modes pre-set — point them at
+your local files or add your own. External packs needed: ComfyUI-KJNodes and
+ComfyUI-Custom-Scripts (text display); the `wanvideo` variants additionally
+need ComfyUI-WanVideoWrapper (use **Manager → Install Missing Custom Nodes**
+after loading). The native variants load fp8 checkpoints through the core
+UNETLoader — GGUF users swap in their GGUF loader. The `wanvideo` variants
+point at GGUF Q8 files; the kijai #1827 single-frame workaround is
+documented in-canvas (Frame Inflate ships bypassed for the GGUF default).
+
 ## Preview images and trigger words
 
 Place files alongside your `.safetensors`:
