@@ -1,14 +1,14 @@
-# Ultimate LoRA Stack — Abhängigkeiten
-# Werden von ComfyUI Manager automatisch installiert.
+# Polyhedron LoRA Stack — dependencies
+# Installed automatically by ComfyUI Manager.
 #
-# Hinweis: Die geladenen Nodes selbst brauchen WEDER Pillow NOCH requests —
-# sie laufen auch ohne diese Pakete (graceful degradation; Civitai-Fetch zur
-# Laufzeit nutzt aiohttp, das ComfyUI ohnehin mitbringt). Beide Pakete werden
-# nur vom optionalen Standalone-CLI `uls_preview_gen.py` benötigt (Info-Card-
-# Generierung + Civitai-Preview-Download außerhalb von ComfyUI).
+# Note: the loaded nodes themselves need NEITHER Pillow NOR requests —
+# they run fine without these packages (graceful degradation; the runtime
+# Civitai fetch uses aiohttp, which ComfyUI already ships). Both packages
+# are only needed by the optional standalone CLI `uls_preview_gen.py`
+# (info-card generation + Civitai preview download outside of ComfyUI).
 
-# Optional (nur CLI): Preview-Generierung (Info-Cards als Fallback)
+# Optional (CLI only): preview generation (info cards as fallback)
 Pillow>=9.0.0
 
-# Optional (nur CLI): Civitai-API + Preview-Download
+# Optional (CLI only): Civitai API + preview download
 requests>=2.28.0

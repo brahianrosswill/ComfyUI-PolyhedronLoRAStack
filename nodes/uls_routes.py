@@ -550,7 +550,7 @@ async def handle_civitai_fetch(request: web.Request) -> web.Response:
 
 
 def register_routes():
-    """Registriert alle ULS-Routen beim ComfyUI PromptServer."""
+    """Register all ULS routes with the ComfyUI PromptServer."""
     try:
         app = PromptServer.instance.app
     except Exception as e:

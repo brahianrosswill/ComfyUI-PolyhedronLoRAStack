@@ -103,7 +103,7 @@ function ensurePreview(name) {
                     octx.drawImage(vid, 0, 0, 120, 120);
                     const snap = new Image();
                     snap.onload = () => {
-                        if (!entry.img) entry.img = snap;  // nur wenn kein Standbild vorhanden
+                        if (!entry.img) entry.img = snap;  // only if no still image exists yet
                         if (--pending === 0) entry.loaded = true;
                         app.graph?.setDirtyCanvas(true, false);
                     };
@@ -143,17 +143,17 @@ async function loadLoraList() {
     _loraListLoading = false;
 }
 
-// Sofort laden wenn Extension initialisiert wird
+// Load immediately when the extension initialises
 loadLoraList();
 
 // ─── Fokus-Tracker: merkt sich das zuletzt aktive Textfeld ────────────────
 //
-// ComfyUI CLIP Text Encode + ULS Dual Prompt Textareas sind echte DOM-
-// Elemente. Wir tracken das zuletzt fokussierte Textfeld global, damit
-// ein Klick auf eine LoRA-Zeile im Canvas den Trigger dort einfügen kann.
+// ComfyUI CLIP Text Encode + ULS dual prompt textareas are real DOM
+// elements. We track the last focused text field globally so that a
+// click on a LoRA row in the canvas can insert the trigger there.
 //
-// Warum nicht document.activeElement? Weil der Canvas-Klick das Fokus
-// sofort weg nimmt — wir brauchen den Wert von VOR dem Klick.
+// Why not document.activeElement? Because the canvas click steals the
+// focus immediately — we need the value from BEFORE the click.
 
 let _lastFocusedTextarea = null;
 let _lastCursorPos       = 0;  // selectionStart zum Zeitpunkt des Blur
@@ -175,14 +175,14 @@ document.addEventListener("selectionchange", () => {
 document.addEventListener("focusout", (e) => {
     const el = e.target;
     if (el === _lastFocusedTextarea) {
-        // Cursor-Position beim Verlassen des Feldes merken
+        // Remember the cursor position when leaving the field
         _lastCursorPos = el.selectionStart ?? el.value?.length ?? 0;
     }
 }, true);
 
 /**
- * Leitet alle Trigger-Words einer LoRA ab — gibt ein Array zurück.
- * Reihenfolge: längste zuerst (vollständigste zuerst).
+ * Derives all trigger words of a LoRA — returns an array.
+ * Order: longest first (most complete first).
  *
  * Strategie:
  *  1. Metadaten → alle komma-getrennten Trigger-Words
@@ -207,7 +207,7 @@ function deriveTriggers(loraName, meta) {
             .map(s => s.trim())
             .filter(s => s.length > 0 && s.length < 60);
         if (parts.length > 0) {
-            // Längste zuerst
+            // Longest first
             return parts.sort((a, b) => b.length - a.length);
         }
     }
@@ -236,15 +236,15 @@ function deriveTriggers(loraName, meta) {
     return [base.split("_")[0] || base];
 }
 
-// Compat-Wrapper für einzelnen Trigger (Fallback)
+// Compat wrapper for a single trigger (fallback)
 function deriveTrigger(loraName, meta) {
     return deriveTriggers(loraName, meta)[0] || "";
 }
 
 /**
- * Fügt Text an der gespeicherten Cursor-Position im letzten Textfeld ein.
- * Danach wird ein natürliches Input-Event gefeuert damit ComfyUI
- * den geänderten Wert mitbekommt.
+ * Inserts text at the stored cursor position in the last text field.
+ * A natural input event is fired afterwards so ComfyUI picks up
+ * the changed value.
  */
 function insertTriggerAtCursor(triggerText) {
     const el  = _lastFocusedTextarea;
@@ -256,7 +256,7 @@ function insertTriggerAtCursor(triggerText) {
     const pos  = _lastCursorPos;
     const val  = el.value || "";
 
-    // Leerzeichen-Padding: füge ein Leerzeichen vor/nach ein wenn nötig
+    // Whitespace padding: insert a space before/after where needed
     const before = val.slice(0, pos);
     const after  = val.slice(pos);
     const needSpaceBefore = before.length > 0 && !/\s$/.test(before);
@@ -266,7 +266,7 @@ function insertTriggerAtCursor(triggerText) {
     const newVal = before + insert + after;
     const newPos = pos + insert.length;
 
-    // Wert setzen (React-kompatibel für ComfyUI-Widgets)
+    // Set the value (React-compatible for ComfyUI widgets)
     const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
         window.HTMLTextAreaElement.prototype, "value"
     )?.set;
@@ -276,12 +276,12 @@ function insertTriggerAtCursor(triggerText) {
         el.value = newVal;
     }
 
-    // Cursor ans Ende des eingefügten Texts setzen
+    // Move the cursor to the end of the inserted text
     el.selectionStart = newPos;
     el.selectionEnd   = newPos;
     _lastCursorPos    = newPos;
 
-    // ComfyUI Events feuern
+    // Fire ComfyUI events
     el.dispatchEvent(new Event("input",  { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
 
@@ -333,8 +333,8 @@ function showInsertToast(text, ok, nodePos) {
 }
 
 /**
- * Zeigt ein kleines Popup mit allen verfügbaren Triggern zur Auswahl.
- * Klick auf einen Trigger fügt ihn im Format (trigger:weight) ein.
+ * Shows a small popup with all available triggers to pick from.
+ * Clicking a trigger inserts it in (trigger:weight) format.
  */
 function openTriggerSelectPopup(triggers, weight, e) {
     document.getElementById("uls-trigger-select")?.remove();
@@ -857,7 +857,7 @@ function checkConflicts(rows) {
     }
 
     // Weight sums — DARE-Merging bei Gruppen reduziert Interferenz,
-    // daher ist der Threshold großzügiger als beim alten sequentiellen Stacking.
+    // hence the threshold is more generous than with the old sequential stacking.
     const sumH = active.reduce((s, r) => s + Math.abs(r.wHigh), 0);
     const sumL = active.reduce((s, r) => s + Math.abs(r.wLow),  0);
     if (sumH > 10) warnings.push({ row: -1, level: "warn",
@@ -1096,7 +1096,7 @@ app.registerExtension({
     async beforeRegisterNodeDef(nodeType, nodeData) {
         if (nodeData.name !== NODE_TYPE) return;
 
-        // LoRA-Liste: globale Variable - wird beim ersten Öffnen geladen
+        // LoRA list: global variable — loaded on first open
         // (loraList ist global oben im File definiert)
 
         // ── onCreate ────────────────────────────────────────────────────
@@ -1144,7 +1144,7 @@ app.registerExtension({
             app.graph?.setDirtyCanvas(true, false);
         };
 
-        // onResize: verhindert dass ComfyUI die Node unter unsere Mindestgröße schrumpft
+        // onResize: prevents ComfyUI from shrinking the node below our minimum size
         nodeType.prototype.onResize = function (size) {
             if (!this._uls?.rows) return;
             const warns = checkConflicts(this._uls.rows).filter(w => w.row === -1).length;
@@ -1163,6 +1163,7 @@ app.registerExtension({
                     enabled: r.enabled, name: r.name,
                     weight: r.wLow ?? r.wHigh ?? 1.0,
                     wHigh: r.wHigh, wLow: r.wLow,
+                    wClip: r.wClip,   // v302: optional per-row CLIP strength
                     group: r.group,
                 })),
                 mult: this._uls.mult,
@@ -1183,7 +1184,7 @@ app.registerExtension({
         const _orig_cfg = nodeType.prototype.onConfigure;
         nodeType.prototype.onConfigure = function (o) {
             _orig_cfg?.apply(this, arguments);
-            // _uls sicher initialisieren falls onNodeCreated noch nicht lief
+            // Safely initialise _uls in case onNodeCreated has not run yet
             if (!this._uls || typeof this._uls !== "object" || !this._uls.rows) {
                 this._uls = { rows: [newRow()], mult: 1.0,
                               hoverRow: -1, hoverZone: "", dragSrc: -1, dragDest: -1,
@@ -1199,7 +1200,7 @@ app.registerExtension({
             if (!this._uls.groupTrimAmount) this._uls.groupTrimAmount = {};
             if (this._uls.flatMode === undefined) this._uls.flatMode = false;
             if (!this._uls.groupOrder) this._uls.groupOrder = {};
-            // uls_config Widget immer verstecken
+            // Always hide the uls_config widget
             this._ulsHideConfigWidget();
             if (o._uls && this._uls) {
                 try {
@@ -1276,20 +1277,20 @@ app.registerExtension({
             }
         };
 
-        // Sync zum hidden widget für Python-Backend
+        // Sync to the hidden widget for the Python backend
         nodeType.prototype._ulsSync = function () {
             if (!this._uls || !this.widgets) return;
             let w = this.widgets.find(x => x.name === "uls_config");
             if (!w) {
                 w = this.addWidget("text", "uls_config", "", () => {});
             }
-            // Widget immer verstecken — Wert wird intern verwaltet
+            // Always hide the widget — the value is managed internally
             w.hidden = true;
             w.type = "hidden";
             w.computeSize = () => [0, -4];
             w.tooltip = "";
             w.options = w.options || {};
-            w.options.hideOnZoom = true;  // Nimmt keinen Platz ein
+            w.options.hideOnZoom = true;  // takes up no space
             w.value = JSON.stringify({
                 rows: this._uls.rows.map(r => {
                     const wt = (typeof r.wLow === "number" ? r.wLow
@@ -1299,6 +1300,7 @@ app.registerExtension({
                         enabled: r.enabled, name: r.name,
                         weight: wt,
                         wHigh: r.wHigh, wLow: r.wLow,
+                        wClip: r.wClip,   // v302: optional per-row CLIP strength
                         group: r.group,
                     };
                 }),
@@ -1312,7 +1314,7 @@ app.registerExtension({
                 groupOrder: this._uls.groupOrder || {},
                 dare_variant: "channel",
             });
-            // Widget nach jedem Sync verstecken
+            // Hide the widget after every sync
             this._ulsHideConfigWidget?.();
         };
 
@@ -1322,6 +1324,16 @@ app.registerExtension({
             // draw path actually ran for this node. Used to detect renderers
             // (e.g. Nodes 2.0 / Vue) that never call onDrawForeground.
             this._ulsDrawFired = true;
+            // v303: self-healing — if the compat layer injected the renderer
+            // notice (uls_compat.js, name below) but the canvas path IS alive,
+            // that was a false positive (offscreen culling / slow first draw:
+            // onDrawForeground only runs for nodes inside the viewport).
+            // Remove the notice the moment we provably draw.
+            if (this.widgets?.some(w => w?.name === "polyhedron_renderer_notice")) {
+                this.widgets = this.widgets.filter(
+                    w => w?.name !== "polyhedron_renderer_notice");
+                this.setDirtyCanvas?.(true, true);
+            }
             const uls = this._uls;
             if (!uls || typeof uls !== "object" || !uls.rows) return;
             const W = this.size[0];
@@ -1336,7 +1348,7 @@ app.registerExtension({
                 ctx.strokeStyle = "#c060ff";
                 ctx.lineWidth = 1.2;
                 ctx.globalAlpha = 0.8;
-                // Äußeres Hexagon
+                // Outer hexagon
                 ctx.beginPath();
                 for (let k = 0; k < 6; k++) {
                     const a = (k * Math.PI / 3) - Math.PI / 6;
@@ -1361,9 +1373,13 @@ app.registerExtension({
             ctx.textBaseline = "middle";
             ctx.fillStyle = "#505060";
             // Column headers above rows
+            // v307: these MUST mirror the row layout constants (row loop:
+            // GRP_W=50, insertW=28, WEIGHT_W=72, DEL_W=18, btnGap=4). The
+            // header had a stale _GRP_W=36, which pushed the "Group" label
+            // 7px and the "Trigger" label 14px right of their columns.
             const _DEL_W   = 18, _btnGap = 4, _WEIGHT_W = 72;
             const _weightX = W - PAD - _DEL_W - _btnGap - _WEIGHT_W;
-            const _GRP_W   = 36, _INSERT_W = 28;
+            const _GRP_W   = 50, _INSERT_W = 28;
             const _grpX    = _weightX - _btnGap - _GRP_W;
             const _insertX = _grpX - _btnGap - _INSERT_W;
 
@@ -1393,7 +1409,50 @@ app.registerExtension({
             ctx.font = "9px 'Segoe UI',Arial";
             ctx.fillStyle = "#b07820";
             ctx.textAlign = "center";
-            ctx.fillText("Weight", _weightX + _WEIGHT_W / 2, HEADER_H - 8);
+            {
+                // v305: two-tone header (amber Weight + blue /CLIP + info
+                // icon), centered over the column via measureText — the v304
+                // eyeballed offsets sat visibly right of the cell center.
+                // The icon is decorative: the WHOLE header cell is the hover
+                // area for the explainer tooltip (uls._weightHdrRect below).
+                const _hy = HEADER_H - 8;
+                // v308: "Weight / CLIP Strength" is wider than the 72px
+                // weight cell, so the composite is RIGHT-anchored: the icon's
+                // right edge sits at the node content edge (above the ✕
+                // column, which has no header label), and the text extends
+                // left into the cell. That keeps maximum clearance from the
+                // "Group" label. Measured, never eyeballed (v304 lesson).
+                ctx.textAlign = "left";
+                ctx.font = "9px 'Segoe UI',Arial";
+                const _wW = ctx.measureText("Weight").width;
+                ctx.font = "8px 'Segoe UI',Arial";
+                const _wC = ctx.measureText(" / CLIP Strength").width;
+                const _ICO_R = 3.2, _ICO_GAP = 4;
+                const _total = _wW + _wC + _ICO_GAP + 2 * _ICO_R;
+                const _right = W - PAD;            // = contentR of the rows
+                let _hx = _right - _total;
+                ctx.font = "9px 'Segoe UI',Arial";
+                ctx.fillStyle = "#b07820";
+                ctx.fillText("Weight", _hx, _hy);
+                _hx += _wW;
+                ctx.font = "8px 'Segoe UI',Arial";
+                ctx.fillStyle = "#6aa0d0";
+                ctx.fillText(" / CLIP Strength", _hx, _hy);
+                // 🛈 — small stroked circle with an "i", same CLIP blue
+                const _ix = _hx + _wC + _ICO_GAP + _ICO_R;
+                ctx.beginPath();
+                ctx.arc(_ix, _hy - 3, _ICO_R, 0, Math.PI * 2);
+                ctx.strokeStyle = "#6aa0d0"; ctx.lineWidth = 0.9;
+                ctx.stroke();
+                ctx.font = "bold 5.5px 'Segoe UI',Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("i", _ix, _hy - 1.2);
+                ctx.font = "9px 'Segoe UI',Arial";
+                // Hover area = the full composite (text + icon), not just
+                // the 72px cell — the tooltip promise is "whole surface".
+                uls._weightHdrRect = { x: _right - _total - 2, y: HEADER_H - 18,
+                                       w: _total + 4, h: 14 };
+            }
             ctx.fillStyle = "#7a6aaa";
             ctx.fillText("Group", _grpX + _GRP_W / 2, HEADER_H - 8);
             ctx.fillStyle = "#4a8a6a";
@@ -1460,13 +1519,13 @@ app.registerExtension({
                 const thumbX   = PAD + 48;
                 const insertW  = 28;
                 const GRP_W    = 50;
-                const WEIGHT_W = 72;  // breit genug für ◀ value ▶
+                const WEIGHT_W = 72;  // wide enough for ◀ value ▶
                 const ARROW_W  = 14;  // Breite jedes Pfeil-Buttons
                 const DEL_W    = 18;
                 const btnGap   = 4;
                 const nameX    = thumbX + THUMB_W + 4;
                 const contentR = W - PAD;
-                // Von rechts: ✕ + gap + [◀ Weight ▶] + gap + GRP + gap + insert + gap
+                // From the right: ✕ + gap + [◀ Weight ▶] + gap + GRP + gap + insert + gap
                 const delX     = contentR - DEL_W;
                 const weightX  = delX - btnGap - WEIGHT_W;
                 const grpPillX = weightX - btnGap - GRP_W;
@@ -1474,8 +1533,8 @@ app.registerExtension({
                 const nameMaxW = insertX - btnGap - nameX;
                 // Pfeil-Positionen innerhalb der Weight-Box
                 const wArrowLX = weightX;                       // ◀ links
-                const wArrowRX = weightX + WEIGHT_W - ARROW_W; // ▶ rechts
-                const wValX    = weightX + ARROW_W;             // Wert-Bereich
+                const wArrowRX = weightX + WEIGHT_W - ARROW_W; // ▶ on the right
+                const wValX    = weightX + ARROW_W;             // value area
 
                 const nameHover   = isHov && uls.hoverZone === "name";
                 const insertHover = isHov && uls.hoverZone === "insert";
@@ -1633,7 +1692,7 @@ app.registerExtension({
                     }
                 }
 
-                // Weight Box mit ◀ ▶ Buttons
+                // Weight box with ◀ ▶ buttons
                 ctx.fillStyle = "#221a10";
                 roundRect(ctx, weightX, y + 5, WEIGHT_W, 18, 4); ctx.fill();
                 ctx.strokeStyle = "#f0a03044"; ctx.lineWidth = 0.5;
@@ -1650,9 +1709,20 @@ app.registerExtension({
                 roundRect(ctx, wArrowRX, y + 5, ARROW_W, 18, 4); ctx.fill();
                 ctx.fillStyle = wIncHover ? "#f0a030" : "#7a5018";
                 ctx.fillText("▶", wArrowRX + ARROW_W / 2, y + ROW_H / 2);
-                // Wert
+                // Value
                 ctx.fillStyle = "#f0a030"; ctx.font = "bold 11px monospace";
-                ctx.fillText(row.wLow.toFixed(2), wValX + (WEIGHT_W - 2*ARROW_W) / 2, y + ROW_H / 2);
+                if (typeof row.wClip === "number" && row.wClip !== row.wLow) {
+                    // v302: decoupled CLIP strength — two-line cell
+                    ctx.font = "bold 9px monospace";
+                    ctx.fillText(row.wLow.toFixed(2),
+                                 wValX + (WEIGHT_W - 2*ARROW_W) / 2, y + ROW_H / 2 - 4);
+                    ctx.font = "7px monospace";
+                    ctx.fillStyle = "#6aa0d0";
+                    ctx.fillText("c " + row.wClip.toFixed(2),
+                                 wValX + (WEIGHT_W - 2*ARROW_W) / 2, y + ROW_H / 2 + 5);
+                } else {
+                    ctx.fillText(row.wLow.toFixed(2), wValX + (WEIGHT_W - 2*ARROW_W) / 2, y + ROW_H / 2);
+                }
                 ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
 
                 // ✕ Delete Button
@@ -1694,7 +1764,7 @@ app.registerExtension({
             ctx.fillRect(0, addY, W, ROW_H);
             ctx.strokeStyle = "#252535"; ctx.lineWidth = 0.5;
             ctx.beginPath(); ctx.moveTo(0, addY); ctx.lineTo(W, addY); ctx.stroke();
-            // "＋" zentriert
+            // "＋" centered
             ctx.fillStyle = addHov ? "#6acc6a" : "#3a5a3a";
             ctx.font = "bold 14px Arial";
             ctx.textAlign = "center";
@@ -1702,6 +1772,34 @@ app.registerExtension({
             ctx.fillText("＋", W / 2, addY + ROW_H / 2);
             ctx.textBaseline = "alphabetic";
             ctx.textAlign = "left";
+
+            // ── Weight/CLIP header tooltip — drawn LAST (v304) ──────────
+            if (uls.hoverZone === "weightHdr" && uls._weightHdrRect) {
+                const hr = uls._weightHdrRect;
+                const lines = [
+                    "Weight / CLIP Strength",
+                    "Click: model weight.  Shift+Click: set a per-LoRA",
+                    "CLIP strength (decoupled).  Shift+\u25C0 \u25B6 steps it.",
+                    "Enter the model weight again to re-link.",
+                ];
+                const LH = 13, PAD_T = 6, TW = 250;
+                const TH = PAD_T * 2 + LH * lines.length;
+                // Header sits near the right edge → anchor the tooltip LEFT
+                const TX = Math.max(PAD, hr.x - TW - 8);
+                const TY = Math.max(2, hr.y - 2);
+                ctx.fillStyle = "#0e0e18";
+                roundRect(ctx, TX, TY, TW, TH, 5); ctx.fill();
+                ctx.strokeStyle = "#6aa0d0aa"; ctx.lineWidth = 1;
+                roundRect(ctx, TX, TY, TW, TH, 5); ctx.stroke();
+                lines.forEach((line, i) => {
+                    ctx.font = i === 0
+                        ? "bold 10px 'Segoe UI',Arial"
+                        : "9.5px 'Segoe UI',Arial";
+                    ctx.fillStyle = i === 0 ? "#6aa0d0" : "#c8c8d8";
+                    ctx.textAlign = "left";
+                    ctx.fillText(line, TX + 8, TY + PAD_T + 10 + i * LH);
+                });
+            }
 
             // ── Pill Tooltip — drawn LAST so rows can't paint over it ────
             if (uls.hoverZone === "flatMode" && uls._flatModePillRect) {
@@ -1740,7 +1838,7 @@ app.registerExtension({
             ctx.restore();
         };
 
-        // ── Mouse Wheel: Weight per Scroll ändern ────────────────────
+        // ── Mouse wheel: change weight by scrolling ──────────────────
 
         nodeType.prototype.onMouseWheel = function (e, [lx, ly]) {
             const uls = this._uls; if (!uls) return false;
@@ -1778,6 +1876,18 @@ app.registerExtension({
             const rowIdx = rowAt(ly);
             let dirty = false;
 
+            // v304: Weight/CLIP header hover → explains the Shift interaction
+            const whR = uls._weightHdrRect;
+            if (whR && lx >= whR.x && lx <= whR.x + whR.w
+                    && ly >= whR.y && ly <= whR.y + whR.h) {
+                if (uls.hoverZone !== "weightHdr") {
+                    uls.hoverZone = "weightHdr"; dirty = true;
+                }
+                if (rowIdx !== uls.hoverRow) { uls.hoverRow = rowIdx; dirty = true; }
+                if (dirty) app.graph?.setDirtyCanvas(true, false);
+                return;
+            }
+
             // Flat-Mode Pill Hover
             const fmR = uls._flatModePillRect;
             if (fmR && lx >= fmR.x && lx <= fmR.x + fmR.w
@@ -1798,7 +1908,7 @@ app.registerExtension({
             const newZoneAdd = onAddRow ? "addRow" : "";
 
             const inFooter = ly > this.size[1] - FOOTER_H;
-            // ℹ hover im Footer
+            // ℹ hover in the footer
             if (inFooter) {
                 const footY2   = this.size[1] - FOOTER_H + 6;
                 const sliderMid2 = footY2 + 14;
@@ -1852,7 +1962,7 @@ app.registerExtension({
 
                 if (zone !== uls.hoverZone) { uls.hoverZone = zone; dirty = true; }
 
-                // Preview-Popup beim Thumbnail-Hover
+                // Preview popup on thumbnail hover
                 if (zone === "thumb" && row.name !== "None") {
                     ensurePreview(row.name);
                     const canvas = app.canvas.canvas;
@@ -1870,7 +1980,7 @@ app.registerExtension({
                 closePopup();
             }
 
-            // (Slider-Drag läuft über nativen pointermove-Handler — nicht hier)
+            // (slider drag runs through the native pointermove handler — not here)
 
             // Drag-Dest aktualisieren
             if (uls.dragSrc >= 0 && rowIdx >= 0 && rowIdx !== uls.dragDest) {
@@ -1934,7 +2044,7 @@ app.registerExtension({
                 this._ulsSync(); return true;
             }
 
-            // Zonen-Koordinaten (müssen mit Draw übereinstimmen)
+            // Zone coordinates (must match the draw code)
             const THUMB_W  = 30;
             const thumbX   = PAD + 48;
             const insertW  = 28, btnGap = 4;
@@ -1951,10 +2061,10 @@ app.registerExtension({
             const wArrowLX = weightX;
             const wArrowRX = weightX + WEIGHT_W - ARROW_W;
 
-            // ── ▲▼ Reihenfolge ─────────────────────────────────────────
+            // ── ▲▼ Reordering ──────────────────────────────────────────
             if (ri >= 0 && ri < uls.rows.length && lx >= PAD && lx <= PAD + 14) {
                 const y = HEADER_H + ri * ROW_H;
-                // ▲ Nach oben (obere Hälfte der Row)
+                // ▲ Move up (upper half of the row)
                 if (ly >= y + 1 && ly <= y + ROW_H / 2) {
                     if (ri > 0) {
                         const [r] = uls.rows.splice(ri, 1);
@@ -1964,7 +2074,7 @@ app.registerExtension({
                     }
                     return true;
                 }
-                // ▼ Nach unten (untere Hälfte der Row)
+                // ▼ Move down (lower half of the row)
                 if (ly >= y + ROW_H / 2 && ly <= y + ROW_H - 1) {
                     if (ri < uls.rows.length - 1) {
                         const [r] = uls.rows.splice(ri, 1);
@@ -1982,7 +2092,7 @@ app.registerExtension({
                 return true;
             }
 
-            // ── ↵ Insert-Button: Trigger in CLIP einfügen ──────────────
+            // ── ↵ Insert button: insert trigger into CLIP prompt ───────
             if (lx >= insertX && lx <= insertX + insertW) {
                 const toastPos = { x: e.clientX - 10, y: e.clientY - 36 };
 
@@ -2005,33 +2115,52 @@ app.registerExtension({
                 return true;
             }
 
-            // ── Name-Button: LoRA auswählen via DOM-Select ─────────────
+            // ── Name button: pick a LoRA via DOM select ────────────────
             if (lx >= nameX - 2 && lx <= nameX + nameMaxW + 2) {
                 openLoraSelect(row, _loraList, e, this);
                 return true;
             }
 
-            // ── ◀ Weight verringern ────────────────────────────────────
+            // ── ◀ Weight verringern (v302: Shift = CLIP strength) ──────
             if (lx >= wArrowLX && lx <= wArrowLX + ARROW_W) {
-                row.wLow  = Math.round(Math.max(-10, row.wLow - 0.05) * 100) / 100;
-                row.wHigh = row.wLow;
+                if (e.shiftKey) {
+                    const base = (typeof row.wClip === "number") ? row.wClip : row.wLow;
+                    row.wClip = Math.round(Math.max(-10, base - 0.05) * 100) / 100;
+                } else {
+                    row.wLow  = Math.round(Math.max(-10, row.wLow - 0.05) * 100) / 100;
+                    row.wHigh = row.wLow;
+                }
                 app.graph?.setDirtyCanvas(true, false); this._ulsSync();
                 return true;
             }
-            // ── ▶ Weight erhöhen ────────────────────────────────────────
+            // ── ▶ Weight erhöhen (v302: Shift = CLIP strength) ──────────
             if (lx >= wArrowRX && lx <= wArrowRX + ARROW_W) {
-                row.wLow  = Math.round(Math.min(10, row.wLow + 0.05) * 100) / 100;
-                row.wHigh = row.wLow;
+                if (e.shiftKey) {
+                    const base = (typeof row.wClip === "number") ? row.wClip : row.wLow;
+                    row.wClip = Math.round(Math.min(10, base + 0.05) * 100) / 100;
+                } else {
+                    row.wLow  = Math.round(Math.min(10, row.wLow + 0.05) * 100) / 100;
+                    row.wHigh = row.wLow;
+                }
                 app.graph?.setDirtyCanvas(true, false); this._ulsSync();
                 return true;
             }
 
-            // ── Weight Box (Klick auf Mitte = Eingabe) ─────────────────
+            // ── Weight Box (Klick = Eingabe; v302: Shift-Klick = CLIP) ──
             if (lx >= weightX + ARROW_W && lx <= weightX + WEIGHT_W - ARROW_W) {
-                showWeightInput(e, row.wLow, (v) => {
-                    row.wLow = v; row.wHigh = v;
-                    app.graph?.setDirtyCanvas(true, false); this._ulsSync();
-                }, "Weight");
+                if (e.shiftKey) {
+                    const cur = (typeof row.wClip === "number") ? row.wClip : row.wLow;
+                    showWeightInput(e, cur, (v) => {
+                        // entering the model weight re-links CLIP to it
+                        if (v === row.wLow) delete row.wClip; else row.wClip = v;
+                        app.graph?.setDirtyCanvas(true, false); this._ulsSync();
+                    }, "CLIP Strength", "#6aa0d0");
+                } else {
+                    showWeightInput(e, row.wLow, (v) => {
+                        row.wLow = v; row.wHigh = v;
+                        app.graph?.setDirtyCanvas(true, false); this._ulsSync();
+                    }, "Weight");
+                }
                 return true;
             }
 
@@ -2183,7 +2312,7 @@ app.registerExtension({
             uls.dragSrc = -1; uls.dragDest = -1;
             if (src !== dst && dst >= 0 && dst < uls.rows.length) {
                 const [r] = uls.rows.splice(src, 1);
-                // Einfügen: wenn dst > src schon korrigiert durch splice
+                // Insert: dst > src is already corrected by the splice
                 const insertAt = dst > src ? dst - 1 : dst;
                 uls.rows.splice(insertAt, 0, r);
                 this._ulsSync();
@@ -2192,8 +2321,8 @@ app.registerExtension({
             return true;
         };
 
-        // Rechtsklick-Kontextmenü (auf Row, NICHT auf GRP-Pill — das hat
-        // sein eigenes Popup. Dieses Tree-Menü deckt nur Row-Verwaltung ab.)
+        // Right-click context menu (on the row, NOT on the GRP pill — that
+        // has its own popup. This tree menu only covers row management.)
         const _origMenu = nodeType.prototype.getExtraMenuOptions;
         nodeType.prototype.getExtraMenuOptions = function (canvas, options) {
             _origMenu?.apply(this, arguments);
@@ -2345,7 +2474,7 @@ function openGroupPreviewOverlay(row, e, node) {
     });
     el.appendChild(saveBtn);
 
-    // Civitai-Link (wenn civitai_id vorhanden)
+    // Civitai link (if civitai_id is present)
     if (meta?.civitai_id) {
         const civLink = document.createElement("a");
         civLink.href = `https://civitai.com/models/${meta.civitai_id}`;
@@ -2491,7 +2620,7 @@ function openGroupPreviewOverlay(row, e, node) {
     }
     el.appendChild(grpBtns);
 
-    // ── DARE-Variant Auswahl (nur wenn Gruppe einen DARE-Modus hat) ──────
+    // ── DARE variant picker (only when the group uses a DARE mode) ───────
     const _currentMode = ((node?._uls?.groupModes || {})[row.group] || "SEQ").toUpperCase();
     if (_currentMode === "DARE" && row.group !== "—") {
         const dvLabel = document.createElement("div");
@@ -2539,7 +2668,7 @@ function openGroupPreviewOverlay(row, e, node) {
         if (r.bottom > window.innerHeight - 8) el.style.top  = `${e.clientY - r.height}px`;
     });
 
-    // Schließen bei Klick außerhalb
+    // Close on click outside
     const closeH = (ev) => {
         if (!el.contains(ev.target)) {
             el.remove();
@@ -2651,7 +2780,10 @@ function openPreviewOverlay(loraName, e) {
     document.body.appendChild(backdrop);
 }
 
-function showWeightInput(e, currentVal, onConfirm, label) {
+function showWeightInput(e, currentVal, onConfirm, label, accent) {
+    // v304: accent themes the popup — orange (default) for model weight,
+    // CLIP blue for the decoupled CLIP strength, matching the in-cell color.
+    accent = accent || "#f0a030";
     document.getElementById("uls-weight-input")?.remove();
 
     // Match the canvas zoom: when the user zooms in, nodes appear larger,
@@ -2676,7 +2808,7 @@ function showWeightInput(e, currentVal, onConfirm, label) {
     ].join(";");
 
     const lbl = document.createElement("div");
-    lbl.style.cssText = "color:#888;font-size:10px;margin-bottom:6px;";
+    lbl.style.cssText = `color:${accent};font-size:10px;margin-bottom:6px;`;
     lbl.textContent = label || "Weight";
     el.appendChild(lbl);
 
@@ -2685,10 +2817,10 @@ function showWeightInput(e, currentVal, onConfirm, label) {
     inp.value = currentVal.toFixed(2);
     inp.style.cssText = [
         "width:80px",
-        "background:#221a10",
-        "border:1px solid #f0a030",
+        accent === "#f0a030" ? "background:#221a10" : "background:#101a22",
+        `border:1px solid ${accent}`,
         "border-radius:4px",
-        "color:#f0a030",
+        `color:${accent}`,
         "padding:4px 8px",
         "font:bold 13px monospace",
         "outline:none",
@@ -2724,7 +2856,7 @@ function showWeightInput(e, currentVal, onConfirm, label) {
         ev.stopPropagation();
     });
 
-    // Schließen bei Klick außerhalb — mit Delay damit Input erst fokussiert
+    // Close on click outside — delayed so the input gets focused first
     setTimeout(() => {
         const closeHandler = (ev) => {
             if (!el.contains(ev.target)) {
@@ -2737,10 +2869,10 @@ function showWeightInput(e, currentVal, onConfirm, label) {
 }
 
 function openLoraSelect(row, loraList, e, node) {
-    // Bestehende Selects schließen
+    // Close any existing selects
     document.getElementById("uls-lora-select")?.remove();
 
-    // Falls Liste noch nicht geladen: jetzt laden und nach kurzer Pause neu öffnen
+    // If the list is not loaded yet: load now and reopen after a short pause
     if (_loraList.length === 0 && !_loraListLoading) {
         loadLoraList().then(() => openLoraSelect(row, _loraList, e, node));
         return;
@@ -2823,7 +2955,7 @@ function openLoraSelect(row, loraList, e, node) {
                 border-bottom:1px solid #1e1e2a;
                 ${name === row.name ? "background:#1e1e40;" : ""}
             `;
-            // Mini-Thumbnail wenn vorhanden
+            // Mini thumbnail if available
             const pvItem = previewCache.get(name);
             const thumbHtml = pvItem?.img
                 ? `<img src="${pvItem.img.src}" style="width:32px;height:32px;object-fit:cover;border-radius:3px;flex-shrink:0;">`
@@ -2840,7 +2972,7 @@ function openLoraSelect(row, loraList, e, node) {
                 ev.preventDefault();
                 row.name = name;
                 ensurePreview(name);
-                // Gespeicherte Gruppe laden
+                // Load the stored group
                 api.fetchApi(`/uls/groups`)
                     .then(r => r.json())
                     .then(groups => {
@@ -2878,7 +3010,7 @@ function openLoraSelect(row, loraList, e, node) {
         input.focus();
     });
 
-    // Schließen bei Klick außerhalb oder auf Canvas
+    // Close on click outside or on the canvas
     function doClose() {
         if (!document.getElementById("uls-lora-select")) return;
         wrap.remove();
@@ -3034,7 +3166,8 @@ app.registerExtension({
             _orig_ser?.apply(this, arguments);
             if (this._uls?.rows) o._engine = JSON.stringify({
                 rows: this._uls.rows.map(r => ({
-                    enabled: r.enabled, name: r.name, weight: r.weight
+                    enabled: r.enabled, name: r.name, weight: r.weight,
+                    wClip: r.wClip,   // v309: optional per-row CLIP strength (mirrors Stack v302)
                 })),
                 mode: this._uls.mode || "SEQ",
                 dareVariant: this._uls.dareVariant || "channel",
@@ -3089,7 +3222,8 @@ app.registerExtension({
             w.computeSize = () => [0, -4];
             w.value = JSON.stringify({
                 rows: this._uls.rows.map(r => ({
-                    enabled: r.enabled, name: r.name, weight: r.weight
+                    enabled: r.enabled, name: r.name, weight: r.weight,
+                    wClip: r.wClip,   // v309: optional per-row CLIP strength (mirrors Stack v302)
                 })),
                 mode: this._uls.mode || "SEQ",
                 dare_variant: this._uls.dareVariant || "channel",
@@ -3101,6 +3235,16 @@ app.registerExtension({
         nodeType.prototype.onDrawForeground = function (ctx) {
             // Compat probe (uls_compat.js): see Stack node for rationale.
             this._ulsDrawFired = true;
+            // v303: self-healing — if the compat layer injected the renderer
+            // notice (uls_compat.js, name below) but the canvas path IS alive,
+            // that was a false positive (offscreen culling / slow first draw:
+            // onDrawForeground only runs for nodes inside the viewport).
+            // Remove the notice the moment we provably draw.
+            if (this.widgets?.some(w => w?.name === "polyhedron_renderer_notice")) {
+                this.widgets = this.widgets.filter(
+                    w => w?.name !== "polyhedron_renderer_notice");
+                this.setDirtyCanvas?.(true, true);
+            }
             const uls = this._uls;
             if (!uls || !uls.rows) return;
             const W = this.size[0];
@@ -3187,6 +3331,48 @@ app.registerExtension({
             ctx.fillStyle = modeColors[activeModeKey] || "#888";
             ctx.font = "10px 'Segoe UI',Arial"; ctx.textAlign = "left";
             ctx.fillText("▸ " + (modeLabels[activeModeKey] || activeModeKey), PAD, modeY + MODE_BTN_H + 14);
+
+            {
+                // v310: "Weight / CLIP Strength" header — exact mirror of the
+                // Stack v305/v308 composite. Shares the mode-label baseline
+                // (one header line: label left, composite right) and is
+                // RIGHT-anchored at the node content edge (above the ✕
+                // column). Measured via measureText, never eyeballed
+                // (v304/v307 lesson). The WHOLE composite is the hover area
+                // for the explainer tooltip (uls._weightHdrRect below).
+                const _hy = modeY + MODE_BTN_H + 14;
+                ctx.textAlign = "left";
+                ctx.font = "9px 'Segoe UI',Arial";
+                const _wW = ctx.measureText("Weight").width;
+                ctx.font = "8px 'Segoe UI',Arial";
+                const _wC = ctx.measureText(" / CLIP Strength").width;
+                const _ICO_R = 3.2, _ICO_GAP = 4;
+                const _total = _wW + _wC + _ICO_GAP + 2 * _ICO_R;
+                const _right = W - PAD;            // = contentR of the rows
+                let _hx = _right - _total;
+                ctx.font = "9px 'Segoe UI',Arial";
+                ctx.fillStyle = "#b07820";
+                ctx.fillText("Weight", _hx, _hy);
+                _hx += _wW;
+                ctx.font = "8px 'Segoe UI',Arial";
+                ctx.fillStyle = "#6aa0d0";
+                ctx.fillText(" / CLIP Strength", _hx, _hy);
+                // 🛈 — small stroked circle with an "i", same CLIP blue
+                const _ix = _hx + _wC + _ICO_GAP + _ICO_R;
+                ctx.beginPath();
+                ctx.arc(_ix, _hy - 3, _ICO_R, 0, Math.PI * 2);
+                ctx.strokeStyle = "#6aa0d0"; ctx.lineWidth = 0.9;
+                ctx.stroke();
+                ctx.font = "bold 5.5px 'Segoe UI',Arial";
+                ctx.textAlign = "center";
+                ctx.fillText("i", _ix, _hy - 1.2);
+                ctx.font = "10px 'Segoe UI',Arial";
+                ctx.textAlign = "left";
+                // Hover area = full composite; h=12 keeps it clear of row 0
+                // (rows start at ENGINE_HEADER_H, 2px below the baseline).
+                uls._weightHdrRect = { x: _right - _total - 2, y: _hy - 10,
+                                       w: _total + 4, h: 12 };
+            }
 
             // Row layout (same as main stack but without GRP-pill and trigger-insert)
             const THUMB_W  = 30;
@@ -3306,9 +3492,20 @@ app.registerExtension({
                 ctx.fillStyle = wIncHover ? "#f0a030" : "#7a5018";
                 ctx.fillText("▶", wArrowRX + ARROW_W/2, y + 14);
                 ctx.fillStyle = "#f0a030";
-                ctx.font = "bold 11px monospace";
-                ctx.fillText((row.weight || 0).toFixed(2),
-                             wValX + (WEIGHT_W - 2*ARROW_W) / 2, y + 14);
+                if (typeof row.wClip === "number" && row.wClip !== row.weight) {
+                    // v302: decoupled CLIP strength — two-line cell
+                    ctx.font = "bold 9px monospace";
+                    ctx.fillText((row.weight || 0).toFixed(2),
+                                 wValX + (WEIGHT_W - 2*ARROW_W) / 2, y + 10);
+                    ctx.font = "7px monospace";
+                    ctx.fillStyle = "#6aa0d0";
+                    ctx.fillText("c " + row.wClip.toFixed(2),
+                                 wValX + (WEIGHT_W - 2*ARROW_W) / 2, y + 19);
+                } else {
+                    ctx.font = "bold 11px monospace";
+                    ctx.fillText((row.weight || 0).toFixed(2),
+                                 wValX + (WEIGHT_W - 2*ARROW_W) / 2, y + 14);
+                }
                 ctx.textBaseline = "alphabetic";
 
                 // Delete ✕
@@ -3330,6 +3527,34 @@ app.registerExtension({
             ctx.font = "bold 14px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
             ctx.fillText("＋", W/2, addRowY + ROW_H/2);
             ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
+
+            // ── Weight/CLIP header tooltip — drawn LAST (v310, Stack v304 mirror) ──
+            if (uls.hoverZone === "weightHdr" && uls._weightHdrRect) {
+                const hr = uls._weightHdrRect;
+                const lines = [
+                    "Weight / CLIP Strength",
+                    "Click: model weight.  Shift+Click: set a per-LoRA",
+                    "CLIP strength (decoupled).  Shift+\u25C0 \u25B6 steps it.",
+                    "Enter the model weight again to re-link.",
+                ];
+                const LH = 13, PAD_T = 6, TW = 250;
+                const TH = PAD_T * 2 + LH * lines.length;
+                // Header sits near the right edge → anchor the tooltip LEFT
+                const TX = Math.max(PAD, hr.x - TW - 8);
+                const TY = Math.max(2, hr.y - 2);
+                ctx.fillStyle = "#0e0e18";
+                roundRect(ctx, TX, TY, TW, TH, 5); ctx.fill();
+                ctx.strokeStyle = "#6aa0d0aa"; ctx.lineWidth = 1;
+                roundRect(ctx, TX, TY, TW, TH, 5); ctx.stroke();
+                lines.forEach((line, i) => {
+                    ctx.font = i === 0
+                        ? "bold 10px 'Segoe UI',Arial"
+                        : "9.5px 'Segoe UI',Arial";
+                    ctx.fillStyle = i === 0 ? "#6aa0d0" : "#c8c8d8";
+                    ctx.textAlign = "left";
+                    ctx.fillText(line, TX + 8, TY + PAD_T + 10 + i * LH);
+                });
+            }
 
             // Mode-button hover tooltip
             const hovMode = (uls.hoverZone || "").startsWith("mode:")
@@ -3378,6 +3603,19 @@ app.registerExtension({
             const uls = this._uls; if (!uls?.rows) return false;
             const W = this.size[0];
             let dirty = false;
+
+            // v310: Weight/CLIP header hover → explains the Shift interaction
+            // (checked first, mirrors the Stack onMouseMove order)
+            const whR = uls._weightHdrRect;
+            if (whR && lx >= whR.x && lx <= whR.x + whR.w
+                    && ly >= whR.y && ly <= whR.y + whR.h) {
+                if (uls.hoverZone !== "weightHdr") {
+                    uls.hoverZone = "weightHdr";
+                    uls.hoverRow  = -1;
+                    app.graph?.setDirtyCanvas(true, false);
+                }
+                return false;
+            }
 
             // DARE-Variant Pill (header, right side)
             const dvR = uls._dareVariantRect;
@@ -3455,7 +3693,7 @@ app.registerExtension({
                 app.graph?.setDirtyCanvas(true, false);
             }
 
-            // Preview-Popup beim Thumbnail-Hover (same as stack)
+            // Preview popup on thumbnail hover (same as stack)
             const row = uls.rows[ri];
             if (zone === "thumb" && row?.name !== "None") {
                 ensurePreview(row.name);
@@ -3578,24 +3816,42 @@ app.registerExtension({
                 return true;
             }
 
-            // Weight ◀
+            // Weight ◀ (v302: Shift = CLIP strength)
             if (lx >= wArrowLX && lx <= wArrowLX + ARROW_W) {
-                row.weight = Math.round(Math.max(-10, (row.weight || 0) - 0.05) * 100) / 100;
+                if (e.shiftKey) {
+                    const base = (typeof row.wClip === "number") ? row.wClip : (row.weight || 0);
+                    row.wClip = Math.round(Math.max(-10, base - 0.05) * 100) / 100;
+                } else {
+                    row.weight = Math.round(Math.max(-10, (row.weight || 0) - 0.05) * 100) / 100;
+                }
                 app.graph?.setDirtyCanvas(true, false); this._ulsSync();
                 return true;
             }
-            // Weight ▶
+            // Weight ▶ (v302: Shift = CLIP strength)
             if (lx >= wArrowRX && lx <= wArrowRX + ARROW_W) {
-                row.weight = Math.round(Math.min(10, (row.weight || 0) + 0.05) * 100) / 100;
+                if (e.shiftKey) {
+                    const base = (typeof row.wClip === "number") ? row.wClip : (row.weight || 0);
+                    row.wClip = Math.round(Math.min(10, base + 0.05) * 100) / 100;
+                } else {
+                    row.weight = Math.round(Math.min(10, (row.weight || 0) + 0.05) * 100) / 100;
+                }
                 app.graph?.setDirtyCanvas(true, false); this._ulsSync();
                 return true;
             }
-            // Weight click → numeric input
+            // Weight click → numeric input (v302: Shift-Klick = CLIP)
             if (lx >= weightX + ARROW_W && lx <= weightX + WEIGHT_W - ARROW_W) {
-                showWeightInput(e, row.weight || 0, (v) => {
-                    row.weight = v;
-                    app.graph?.setDirtyCanvas(true, false); this._ulsSync();
-                }, "Weight");
+                if (e.shiftKey) {
+                    const cur = (typeof row.wClip === "number") ? row.wClip : (row.weight || 0);
+                    showWeightInput(e, cur, (v) => {
+                        if (v === (row.weight || 0)) delete row.wClip; else row.wClip = v;
+                        app.graph?.setDirtyCanvas(true, false); this._ulsSync();
+                    }, "CLIP Strength", "#6aa0d0");
+                } else {
+                    showWeightInput(e, row.weight || 0, (v) => {
+                        row.weight = v;
+                        app.graph?.setDirtyCanvas(true, false); this._ulsSync();
+                    }, "Weight");
+                }
                 return true;
             }
 

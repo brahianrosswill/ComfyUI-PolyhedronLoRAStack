@@ -31,7 +31,11 @@ import os
 import sys
 import ast
 
-import torch
+import pytest
+
+# v300 (audit B-3): skip cleanly on a torch-less machine instead of erroring
+# the whole pytest collection (matches test_v272/test_v274 style).
+torch = pytest.importorskip("torch")
 
 
 # ── Load the SHIPPED v259 function straight from the source file ─────────────

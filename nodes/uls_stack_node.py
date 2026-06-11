@@ -361,6 +361,31 @@ def _row_weight(row: dict, default: float = 1.0) -> float:
     return default
 
 
+def _row_clip_weight(row: dict, fallback: float) -> float:
+    """v302: per-row CLIP strength. Reads optional `wClip`; anything missing or
+    non-numeric falls back to the model weight — which makes every pre-v302
+    workflow byte-identical (CLIP strength == model strength, as before)."""
+    if "wClip" in row:
+        v = _safe_weight(row.get("wClip"), default=float("nan"))
+        if not math.isnan(v):
+            return v
+    return fallback
+
+
+# v302: lora-key prefixes that target the text encoder (kohya `lora_te`,
+# `lora_te1/2/3` for SDXL/SD3 duals, diffusers `text_encoder.`, cascade
+# `lora_prior_te`). Used to pick the CLIP weight inside the merged build.
+# A miss is graceful: an unrecognised TE layer is simply scaled with the
+# model weight — i.e. exactly the pre-v302 behaviour, never corruption.
+_TE_KEY_PREFIXES = ("lora_te", "text_encoder", "lora_prior_te")
+
+
+def _is_te_base(base: str) -> bool:
+    """True if a lora base key targets the text encoder (CLIP) rather than
+    the diffusion model."""
+    return str(base).startswith(_TE_KEY_PREFIXES)
+
+
 def _short_name(lora_name: str, n: int = 38) -> str:
     """Filename without extension, truncated. Cross-platform safe."""
     return os.path.basename(lora_name).replace(".safetensors", "")[:n]
@@ -657,13 +682,17 @@ def _get_clip_model(clip):
 
 # ─── Apply: SEQ ────────────────────────────────────────────────────────────
 
-def _apply_seq(loader, model, clip, names: list, weights: list) -> tuple:
+def _apply_seq(loader, model, clip, names: list, weights: list,
+               clip_weights: list = None) -> tuple:
     """Sequentially apply each LoRA via the cached native loader.
-    Returns (model, clip, [error_strings])."""
+    v302: optional per-LoRA CLIP strength (None → CLIP follows model weight,
+    the pre-v302 behaviour). Returns (model, clip, [error_strings])."""
+    if clip_weights is None:
+        clip_weights = list(weights)
     m, c = model, clip
     errors = []
-    for name, w in zip(names, weights):
-        if abs(w) < 1e-6 or not name or name == "None":
+    for name, w, wc in zip(names, weights, clip_weights):
+        if (abs(w) < 1e-6 and abs(wc) < 1e-6) or not name or name == "None":
             continue
         path = folder_paths.get_full_path("loras", name)
         if not path:
@@ -672,7 +701,7 @@ def _apply_seq(loader, model, clip, names: list, weights: list) -> tuple:
             errors.append(msg)
             continue
         try:
-            m, c = loader.load_lora(m, c, name, w, w)
+            m, c = loader.load_lora(m, c, name, w, wc)
         except Exception as ex:
             short = _short_name(name)
             msg = f"✗ Skipped (incompatible): {short}"
@@ -687,7 +716,8 @@ def _apply_concat_or_dare(loader, model, clip, names: list, weights: list,
                           mode: str, dare_variant: str = "channel",
                           trim: bool = False, resolve: bool = False,
                           trim_amount: float = None,
-                          force_resolve_device: str = None) -> tuple:
+                          force_resolve_device: str = None,
+                          clip_weights: list = None) -> tuple:
     """
     Build a synthetic merged LoRA tensor dict by concatenating B/A factors
     along the rank dimension, then hand it to ComfyUI's standard load_lora()
@@ -725,11 +755,15 @@ def _apply_concat_or_dare(loader, model, clip, names: list, weights: list,
     # the plain rank-concat. See _resolve_sign_elect. Honest report after the loop.
 
     # --- Load all tensor dicts ---
+    # v302: clip_weights rides along through the same validity filter so the
+    # three lists stay index-aligned. None → CLIP follows the model weight.
+    if clip_weights is None:
+        clip_weights = list(weights)
     _t0 = time.perf_counter()
-    raw, valid_names, valid_weights = [], [], []
-    for name, w in zip(names, weights):
+    raw, valid_names, valid_weights, valid_clip_weights = [], [], [], []
+    for name, w, wc in zip(names, weights, clip_weights):
         _check_interrupt()                     # v265: red X (Cancel) aborts during loading
-        if abs(w) < 1e-6 or not name or name == "None":
+        if (abs(w) < 1e-6 and abs(wc) < 1e-6) or not name or name == "None":
             continue
         path = folder_paths.get_full_path("loras", name)
         if not path:
@@ -741,13 +775,14 @@ def _apply_concat_or_dare(loader, model, clip, names: list, weights: list,
                 raw.append(td)
                 valid_names.append(name)
                 valid_weights.append(float(w))
+                valid_clip_weights.append(float(wc))
         except Exception as ex:
             print(f"[PLS] ✗ Load failed: {name}: {ex}")
     _t_load += time.perf_counter() - _t0
 
     if len(raw) < 2:
         # 0 or 1 valid → fall back to SEQ
-        return _apply_seq(loader, model, clip, valid_names, valid_weights)
+        return _apply_seq(loader, model, clip, valid_names, valid_weights, valid_clip_weights)
 
     # --- Detect convention per LoRA ---
     convs = [_detect_convention(td) for td in raw]
@@ -757,7 +792,7 @@ def _apply_concat_or_dare(loader, model, clip, names: list, weights: list,
               f"format (LyCORIS/LoHA/LoKr?), falling back to SEQ:")
         for n in unrecognised:
             print(f"[PLS]      - {_short_name(n)}")
-        return _apply_seq(loader, model, clip, valid_names, valid_weights)
+        return _apply_seq(loader, model, clip, valid_names, valid_weights, valid_clip_weights)
 
     # Use the first LoRA's convention as the output naming.
     out_up_suffix, out_down_suffix = convs[0]
@@ -773,7 +808,7 @@ def _apply_concat_or_dare(loader, model, clip, names: list, weights: list,
         print(f"[PLS] ⚠ {mode}: group mixes LoRA naming conventions "
               f"(kohya vs WAN/FLUX) — falling back to SEQ so each LoRA is "
               f"applied correctly under its own convention.")
-        return _apply_seq(loader, model, clip, valid_names, valid_weights)
+        return _apply_seq(loader, model, clip, valid_names, valid_weights, valid_clip_weights)
 
     # --- Conv/LoCon CP-decomposition guard (v253) ---
     # A LoRA carrying a 'mid' tensor has layer delta up · mid · down, but the
@@ -789,7 +824,7 @@ def _apply_concat_or_dare(loader, model, clip, names: list, weights: list,
               f"back to SEQ so each is applied correctly:")
         for n in mid_loras:
             print(f"[PLS]      - {_short_name(n)}")
-        return _apply_seq(loader, model, clip, valid_names, valid_weights)
+        return _apply_seq(loader, model, clip, valid_names, valid_weights, valid_clip_weights)
 
     # --- Per-LoRA: enumerate (base, up_key, down_key, alpha_key) ---
     per_lora_keys = [_collect_factor_keys(td, conv) for td, conv in zip(raw, convs)]
@@ -802,7 +837,7 @@ def _apply_concat_or_dare(loader, model, clip, names: list, weights: list,
 
     if not base_to_sources:
         print(f"[PLS] ⚠ {mode}: no factor keys found, falling back to SEQ")
-        return _apply_seq(loader, model, clip, valid_names, valid_weights)
+        return _apply_seq(loader, model, clip, valid_names, valid_weights, valid_clip_weights)
 
     # --- Build synthetic merged tensor dict ---
     # resolve takes over the merge (sign-election), so the DARE mask is NOT
@@ -894,7 +929,12 @@ def _apply_concat_or_dare(loader, model, clip, names: list, weights: list,
             else:
                 scale = float(alpha_val / rank) if rank > 0 else 1.0
 
-            w = valid_weights[li]
+            # v302: text-encoder layers are scaled with the per-LoRA CLIP
+            # weight; everything else with the model weight. With wClip unset
+            # both are equal → bit-identical to pre-v302. The DARE/RESOLVE
+            # seed stays derived from the model weights only, so existing
+            # WAN workflows keep their exact masks.
+            w = valid_clip_weights[li] if _is_te_base(base) else valid_weights[li]
 
             # float32 for arithmetic, back to original dtype at end.
             B_f = B.float()
@@ -975,14 +1015,15 @@ def _apply_concat_or_dare(loader, model, clip, names: list, weights: list,
                     return _apply_concat_or_dare(loader, model, clip, names, weights,
                                                  mode, dare_variant, trim, resolve,
                                                  trim_amount=trim_amount,
-                                                 force_resolve_device="cpu")
+                                                 force_resolve_device="cpu",
+                                                 clip_weights=clip_weights)
                 print(f"[PLS] ⚠ RESOLVE: layer '{base}' could not be sign-elected "
                       f"({ex}) - falling back to SEQ for the whole group.")
-                return _apply_seq(loader, model, clip, valid_names, valid_weights)
+                return _apply_seq(loader, model, clip, valid_names, valid_weights, valid_clip_weights)
             except Exception as ex:
                 print(f"[PLS] ⚠ RESOLVE: layer '{base}' could not be sign-elected "
                       f"({ex}) - falling back to SEQ for the whole group.")
-                return _apply_seq(loader, model, clip, valid_names, valid_weights)
+                return _apply_seq(loader, model, clip, valid_names, valid_weights, valid_clip_weights)
             if res is None:
                 continue   # full cancellation at this layer → no patch
             B_concat, A_concat = res
@@ -1004,7 +1045,7 @@ def _apply_concat_or_dare(loader, model, clip, names: list, weights: list,
 
     if not merged_td:
         print(f"[PLS] ⚠ {mode}: merged dict empty, falling back to SEQ")
-        return _apply_seq(loader, model, clip, valid_names, valid_weights)
+        return _apply_seq(loader, model, clip, valid_names, valid_weights, valid_clip_weights)
 
     if skipped_shape_mismatch:
         print(f"[PLS]   {mode}: skipped {skipped_shape_mismatch} shape-mismatched layer source(s)")
@@ -1032,7 +1073,7 @@ def _apply_concat_or_dare(loader, model, clip, names: list, weights: list,
         loaded = comfy.lora.load_lora(merged_td, full_keymap)
         if not loaded:
             print(f"[PLS] ⚠ {mode}: ComfyUI mapped 0 patches, falling back to SEQ")
-            return _apply_seq(loader, model, clip, valid_names, valid_weights)
+            return _apply_seq(loader, model, clip, valid_names, valid_weights, valid_clip_weights)
 
         new_model = model.clone()
         new_model.add_patches(loaded, 1.0, 1.0)
@@ -1078,7 +1119,7 @@ def _apply_concat_or_dare(loader, model, clip, names: list, weights: list,
     except Exception as ex:
         print(f"[PLS] ✗ {mode} apply failed ({ex}), falling back to SEQ")
         import traceback; traceback.print_exc()
-        return _apply_seq(loader, model, clip, valid_names, valid_weights)
+        return _apply_seq(loader, model, clip, valid_names, valid_weights, valid_clip_weights)
 
 
 # ─── Unified Apply Helper ──────────────────────────────────────────────────
@@ -1086,7 +1127,8 @@ def _apply_concat_or_dare(loader, model, clip, names: list, weights: list,
 def apply_lora_set(loader, model, clip, names: list, weights: list,
                    mode: str = "SEQ", dare_variant: str = "channel",
                    trim: bool = False, resolve: bool = False,
-                   trim_amount: float = None) -> tuple:
+                   trim_amount: float = None,
+                   clip_weights: list = None) -> tuple:
     """
     THE unified apply helper. Used by both Stack (per group) and Engine.
 
@@ -1106,21 +1148,29 @@ def apply_lora_set(loader, model, clip, names: list, weights: list,
     if mode not in ("SEQ", "CONCAT", "DARE"):
         mode = "SEQ"
 
-    # Filter out empties / zero weights up front
-    pairs = [(n, w) for n, w in zip(names, weights)
-             if n and n != "None" and abs(float(w)) >= 1e-6]
-    if not pairs:
+    # v302: clip strengths ride along (None → CLIP follows model weight).
+    if clip_weights is None:
+        clip_weights = list(weights)
+
+    # Filter out empties / zero weights up front. A row survives if EITHER
+    # strength is non-zero (model 0 + clip 0.8 is a valid CLIP-only row).
+    triples = [(n, w, wc) for n, w, wc in zip(names, weights, clip_weights)
+               if n and n != "None"
+               and (abs(float(w)) >= 1e-6 or abs(float(wc)) >= 1e-6)]
+    if not triples:
         return model, clip, []
 
-    f_names   = [p[0] for p in pairs]
-    f_weights = [p[1] for p in pairs]
+    f_names   = [t[0] for t in triples]
+    f_weights = [t[1] for t in triples]
+    f_clip    = [t[2] for t in triples]
 
     if len(f_names) == 1 or mode == "SEQ":
-        return _apply_seq(loader, model, clip, f_names, f_weights)
+        return _apply_seq(loader, model, clip, f_names, f_weights, f_clip)
 
     return _apply_concat_or_dare(loader, model, clip, f_names, f_weights,
                                   mode=mode, dare_variant=dare_variant,
-                                  trim=trim, resolve=resolve, trim_amount=trim_amount)
+                                  trim=trim, resolve=resolve, trim_amount=trim_amount,
+                                  clip_weights=f_clip)
 
 
 # ─── Trigger Words ─────────────────────────────────────────────────────────
@@ -1431,6 +1481,9 @@ class UltimateLoraStack:
                     trim_amount = float(_ta)
 
             names = [r.get("name", "None") for r in grp_rows]
+            # v302: per-row CLIP strength (defaults to the model weight)
+            grp_clip = [round(_row_clip_weight(r, w), 4)
+                        for r, w in zip(grp_rows, grp_weights)]
 
             if n == 1:
                 short = _short_name(names[0])
@@ -1443,7 +1496,8 @@ class UltimateLoraStack:
             model_out, clip_out, errs = apply_lora_set(
                 self._loader, model_out, clip_out,
                 names, grp_weights, mode=mode, dare_variant=dare_variant,
-                trim=trim, resolve=resolve, trim_amount=trim_amount
+                trim=trim, resolve=resolve, trim_amount=trim_amount,
+                clip_weights=grp_clip
             )
             all_errors.extend(errs)
 
@@ -1570,7 +1624,7 @@ class ULSAccelerator:
         resolve = bool(cfg.get("resolve", False)) and mode != "SEQ"
 
         # Filter active rows. Engine uses `weight`; tolerate legacy too via _row_weight.
-        active_names, active_weights = [], []
+        active_names, active_weights, active_clip = [], [], []
         for row in rows:
             if not isinstance(row, dict):           continue
             if not row.get("enabled", True):        continue
@@ -1579,6 +1633,7 @@ class ULSAccelerator:
             w = _row_weight(row, default=1.0)
             active_names.append(name)
             active_weights.append(round(w, 4))
+            active_clip.append(round(_row_clip_weight(row, w), 4))
 
         n = len(active_names)
         lines = [
@@ -1607,6 +1662,7 @@ class ULSAccelerator:
             active_names, active_weights,
             mode=mode, dare_variant=dare_variant,
             trim=trim, resolve=resolve,
+            clip_weights=active_clip,
         )
 
         err_set = set(errs)

@@ -87,6 +87,40 @@ with live progress in the console. Use one Analyzer per Stack (HIGH + LOW).
 
 ---
 
+## Per-row CLIP strength (v302)
+
+![Per-row CLIP strength](assets/screenshot_clip_strength.png)
+
+By default a row's CLIP (text-encoder) strength follows its model weight —
+exactly as before. To decouple them:
+
+1. **Shift-click** the weight value and enter a separate CLIP strength.
+2. The cell switches to two lines: the amber model weight on top, the blue
+   CLIP strength (`c 0.40`) below.
+3. **Shift + ◀ ▶** steps the CLIP strength; a plain click / ◀ ▶ still edits
+   the model weight.
+4. Entering the model weight again **re-links** the row to the classic
+   single value.
+
+Hover the `Weight / CLIP Strength` column header for an in-node reminder.
+This works identically on the **LoRA Stack** and the **LoRA Engine**. Only relevant for models whose LoRAs carry text-encoder keys (SDXL,
+SD 1.5, …) — WAN LoRAs have none, so WAN workflows are unaffected. In merged
+modes (CONCAT/DARE) the text-encoder layers are scaled with the CLIP strength
+inside the same one-pass merge; DARE/RESOLVE seeds stay derived from the model
+weights, so existing results are bit-identical until you actually decouple a
+row.
+
+## Compatibility
+
+**Renderer:** the Stack and Engine UIs are hand-drawn on the classic LiteGraph
+canvas. ComfyUI's new Vue renderer ("Modern Node Design" / Nodes 2.0) does not
+draw this kind of custom UI — the same limitation applies to other canvas-based
+packs such as rgthree-comfy. If a Stack/Engine node appears empty, disable
+Modern Node Design in Settings; the node shows this hint inline and a one-time
+notice explains it. Your rows and settings are safe either way — only the
+rendering is affected, and all backend nodes (Bridge, Sigma, Token Counter,
+Inspector, Model Switch) work under both renderers.
+
 ## Installation
 
 **ComfyUI-Manager (recommended):** open the Manager, search for **"Polyhedron LoRA Stack"**
@@ -186,8 +220,12 @@ preview image and trigger words from the Civitai API (SFW-strict filtering, capp
 
 ## Documentation
 
-The full illustrated user manual (34 pages, every node, panel and switch) ships in this
-repository: [`docs/Polyhedron_LoRA_Stack_Documentation_v125.pdf`](docs/Polyhedron_LoRA_Stack_Documentation_v125.pdf)
+The full illustrated user manual (35 pages, every node, panel and switch) ships in this
+repository: [`docs/Polyhedron_LoRA_Stack_Documentation_v313.pdf`](docs/Polyhedron_LoRA_Stack_Documentation_v313.pdf)
+
+The manual covers the per-row CLIP strength feature in section 3.13; the
+Nodes 2.0 compatibility layer is described in the Compatibility section
+above and in `CHANGELOG_v*.md`.
 
 ## Links
 

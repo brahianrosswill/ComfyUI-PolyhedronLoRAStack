@@ -46,8 +46,13 @@ import { app } from "../../scripts/app.js";
 // change — they are deliberately NOT in this set.
 const POLY_CANVAS_NODES = new Set(["UltimateLoraStack", "ULSAccelerator"]);
 
-const PLUGIN_VERSION = "v270";
-const GRACE_MS       = 3000;  // time to allow at least one draw before judging
+const PLUGIN_VERSION = "v313";
+// v303: 8s — 3s false-positived on large workflows / slow first draws.
+// LiteGraph culls offscreen nodes (onDrawForeground never runs for them), so
+// the notice can still appear for an offscreen-but-healthy node; the draw
+// path in uls_node.js now removes it the moment the node provably draws
+// (self-healing), which makes the whole mechanism false-positive-safe.
+const GRACE_MS       = 8000;
 
 // ── Best-effort environment snapshot (all reads guarded) ──────────────────
 function readFrontendVersion() {
@@ -66,6 +71,9 @@ const COMPAT = {
     hasLiteGraph:        (typeof LiteGraph !== "undefined"),
     canvasDrawObserved:  false,   // set true once any Polyhedron canvas node draws
     rendererWarningShown: false,
+    fallbackWidgetNodes: [],      // v301: node ids that received the in-node notice
+    probeRearms:         0,       // v306: deferred judgements (all silent nodes offscreen)
+    lastJudgement:       null,    // v306: "drew" | "toast" | "deferred" | "gave-up"
     checkedAt:           null,
     note: "Inspect this object for a quick Polyhedron environment report.",
 };
@@ -107,6 +115,64 @@ function warnRendererOnce() {
     notify("warn", "Polyhedron LoRA Stack — renderer notice", detail, 15000);
 }
 
+// ── v301: visible in-node fallback when the canvas UI never drew ───────────
+// A toast is transient; the broken node is what the user keeps staring at.
+// Standard widgets ARE rendered by the Vue ("Nodes 2.0") renderer, so we put
+// the guidance right inside the affected node. The widget is display-only and
+// explicitly excluded from serialization (the Stack stores its rows JSON in
+// widgets_values — a stray serialized widget would corrupt that layout).
+const FALLBACK_WIDGET_NAME = "polyhedron_renderer_notice";
+
+function injectFallbackWidget(node) {
+    try {
+        if (!node || !node.addWidget) return;
+        if ((node.widgets || []).some(w => w?.name === FALLBACK_WIDGET_NAME)) return;
+        const w = node.addWidget(
+            "text",
+            FALLBACK_WIDGET_NAME,
+            "UI needs LiteGraph renderer — disable 'Modern Node Design' " +
+            "(Nodes 2.0) in Settings. Your rows are safe.",
+            () => {},
+            { serialize: false }
+        );
+        if (w) {
+            w.serialize = false;                       // belt + suspenders:
+            if (w.options) w.options.serialize = false; // never enter widgets_values
+            w.disabled = true;
+        }
+        COMPAT.fallbackWidgetNodes.push(node.id);
+        node.setDirtyCanvas?.(true, true);
+    } catch (e) {
+        console.debug("[Polyhedron] fallback widget skipped:", e);
+    }
+}
+
+// ── v306: viewport test — is a node inside the visible canvas area? ────────
+// LiteGraph culls offscreen nodes (onDrawForeground never runs for them), so
+// "placed but never drew" is only meaningful evidence for a node the canvas
+// would actually have drawn. Fails OPEN (returns true) on any doubt: under a
+// genuine Vue/Nodes-2.0 renderer these internals may be absent, and that is
+// exactly the case where the warning must not be swallowed.
+function nodeInViewport(n) {
+    try {
+        const c  = app.canvas;
+        const ds = c?.ds;
+        const el = c?.canvas;
+        if (!c || !ds || !el || !Array.isArray(ds.offset)) return true;
+        const scale = ds.scale || 1;
+        const vx = -ds.offset[0], vy = -ds.offset[1];
+        const vw = el.width / scale, vh = el.height / scale;
+        const TITLE = 30;  // node title bar sits above pos[1]
+        const nx = n.pos[0], ny = n.pos[1] - TITLE;
+        const nw = n.size[0], nh = n.size[1] + TITLE;
+        return nx + nw > vx && nx < vx + vw && ny + nh > vy && ny < vy + vh;
+    } catch (e) {
+        return true;   // fail open → rather warn once too often than never
+    }
+}
+
+const REARM_MAX = 12;   // ≈ REARM_MAX × GRACE_MS of deferred judgement, then give up
+
 // ── Probe: after a node is created, give it a grace period to draw ─────────
 function armProbe() {
     setTimeout(() => {
@@ -116,11 +182,13 @@ function armProbe() {
             const nodes = app.graph?._nodes || [];
             let present = false;
             let drew = false;
+            const silent = [];
             for (const n of nodes) {
                 const t = n?.comfyClass || n?.type;
                 if (!POLY_CANVAS_NODES.has(t)) continue;
                 present = true;
-                if (n._ulsDrawFired) { drew = true; break; }
+                if (n._ulsDrawFired) { drew = true; }
+                else { silent.push(n); }
             }
 
             // If the user removed the node again, there's nothing to warn about.
@@ -129,8 +197,36 @@ function armProbe() {
             COMPAT.canvasDrawObserved = drew;
             COMPAT.checkedAt = new Date().toISOString();
 
-            if (drew) return;          // canvas path is alive → all good, silent
-            warnRendererOnce();        // placed but never drew → renderer notice
+            if (silent.length === 0) return;   // all drew → all good, silent
+
+            // v306: judge with viewport evidence instead of time alone.
+            // 1) ANY Polyhedron node drew → the canvas path is alive; silent
+            //    siblings are merely offscreen (LiteGraph culls them). No
+            //    toast, no injection — if one ever WERE broken, the v303
+            //    self-healing widget path would still cover it on draw.
+            if (drew) { COMPAT.lastJudgement = "drew"; return; }
+
+            // 2) None drew. Only a node the canvas would have drawn — i.e.
+            //    one inside the viewport — is evidence of a dead renderer.
+            const visibleSilent = silent.filter(nodeInViewport);
+            if (visibleSilent.length > 0) {
+                COMPAT.lastJudgement = "toast";
+                for (const n of silent) injectFallbackWidget(n);
+                warnRendererOnce();    // visible but never drew → real notice
+                return;
+            }
+
+            // 3) Everything offscreen → no evidence either way; re-check
+            //    later instead of guessing (bounded, then give up silently).
+            if (COMPAT.probeRearms < REARM_MAX) {
+                COMPAT.probeRearms += 1;
+                COMPAT.lastJudgement = "deferred";
+                armProbe();
+            } else {
+                COMPAT.lastJudgement = "gave-up";
+                console.debug("[Polyhedron] compat probe gave up: all Stack/" +
+                    "Engine nodes stayed offscreen; no renderer judgement made.");
+            }
         } catch (e) {
             // Diagnostics must never throw into ComfyUI.
             console.debug("[Polyhedron] compat probe skipped:", e);
