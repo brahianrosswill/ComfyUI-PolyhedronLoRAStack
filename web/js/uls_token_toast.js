@@ -1,0 +1,74 @@
+/*
+ * uls_token_toast.js — v318
+ *
+ * Raises a NATIVE ComfyUI toast (app.extensionManager.toast) when the
+ * ⬡ Polyhedron Token Counter runs and the prompt is over (or near) the
+ * model's token limit.
+ *
+ * Why a toast and not just the report: the user is often working elsewhere on
+ * the graph and can't see — or doesn't want to open — the counter's text
+ * output. ComfyUI's toast is the same transient top-right notice the core uses
+ * for warnings: theme-aware, non-blocking, visible regardless of where focus
+ * is. The counter still prints the full report; this is the "look over here"
+ * nudge on top.
+ *
+ * The backend (uls_stack_node.ULSTokenCounter.count) hands us structured
+ * numbers via the UI channel ({"ui": {"pls_tokens": [...]}}), so we never
+ * parse the report string. Mirrors the onExecuted pattern used by the 3D
+ * Cockpit (ph_viewport3d.js).
+ */
+
+import { app } from "../../scripts/app.js";
+
+// Documented toast API with a graceful fallback (same approach as
+// uls_compat.js notify()). Returns silently if no toast manager exists.
+function toast(severity, summary, detail, life) {
+    try {
+        const tm = app.extensionManager?.toast;
+        if (tm?.add) { tm.add({ severity, summary, detail, life }); return; }
+        if (tm?.addAlert) { tm.addAlert(detail); return; }
+    } catch (e) { /* console-only fallback below */ }
+    // Last resort: at least leave a console trace.
+    console.warn(`[PLS Tokens] ${summary} — ${detail}`);
+}
+
+app.registerExtension({
+    name: "Polyhedron.TokenCounter.Toast",
+    async beforeRegisterNodeDef(nodeType, nodeData) {
+        if (nodeData?.name !== "ULSTokenCounter") return;
+
+        const origExec = nodeType.prototype.onExecuted;
+        nodeType.prototype.onExecuted = function (message) {
+            origExec?.apply(this, arguments);
+            try {
+                const arr = message?.pls_tokens;
+                const info = Array.isArray(arr) ? arr[0] : arr;
+                if (!info) return;
+
+                if (info.over_limit) {
+                    const worst = Math.max(info.pos, info.neg);
+                    const over = worst - info.limit;
+                    toast(
+                        "error",
+                        "Token limit exceeded",
+                        `Prompt is ${worst}/${info.limit} tokens (over by ${over}). ` +
+                        `It may be silently truncated or crash kijai's WanVideoSampler. ` +
+                        `Shorten the prompt or route through WanVideoTextEncode.`,
+                        0,   // life 0 = sticky: an over-limit run must not auto-vanish
+                    );
+                } else if (info.near_limit) {
+                    const worst = Math.max(info.pos, info.neg);
+                    toast(
+                        "warn",
+                        "Token budget almost full",
+                        `Prompt is ${worst}/${info.limit} tokens ` +
+                        `(warn at ${info.warn_at}). Quality may start to degrade.`,
+                        6000,
+                    );
+                }
+            } catch (e) {
+                console.warn("[PLS Tokens] toast hook:", e);
+            }
+        };
+    },
+});

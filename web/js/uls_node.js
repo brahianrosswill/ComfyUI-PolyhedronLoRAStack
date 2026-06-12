@@ -294,6 +294,98 @@ function insertTriggerAtCursor(triggerText) {
 }
 
 /**
+ * Polyhedron-styled confirm dialog (replaces the bare white window.confirm).
+ * Matches the dark popup vocabulary used elsewhere in this file. Calls
+ * onConfirm() if the user accepts; otherwise onCancel(). Positioned near the
+ * click when screenPos is given, else centered.
+ */
+function showConfirmDialog({ title, message, confirmLabel = "OK", cancelLabel = "Cancel",
+                            screenPos, onConfirm, onCancel }) {
+    document.getElementById("uls-confirm")?.remove();
+    const scale = (app.canvas?.ds?.scale) || 1;
+
+    const overlay = document.createElement("div");
+    overlay.id = "uls-confirm";
+    overlay.style.cssText =
+        "position:fixed;inset:0;z-index:1000000;background:rgba(0,0,0,0.45);";
+
+    const box = document.createElement("div");
+    box.style.cssText = [
+        "position:absolute",
+        "min-width:300px", "max-width:380px",
+        "background:#14141e",
+        "border:1px solid #7a3a3a",          // warm/alert border, like the conflict flash
+        "border-radius:10px",
+        "box-shadow:0 8px 32px rgba(0,0,0,0.7)",
+        "overflow:hidden",
+        "font:13px 'Segoe UI',Arial,sans-serif",
+        "color:#e0e0ea",
+    ].join(";");
+
+    const head = document.createElement("div");
+    head.style.cssText =
+        "padding:10px 14px;background:#1c1018;border-bottom:1px solid #3a2a2a;" +
+        "color:#ffb0b0;font-weight:bold;display:flex;align-items:center;gap:8px;";
+    head.textContent = "⚠  " + title;
+    box.appendChild(head);
+
+    const body = document.createElement("div");
+    body.style.cssText = "padding:14px;line-height:1.5;white-space:pre-wrap;color:#c8c8d4;";
+    body.textContent = message;
+    box.appendChild(body);
+
+    const foot = document.createElement("div");
+    foot.style.cssText =
+        "padding:10px 14px;border-top:1px solid #2a2a3a;background:#101019;" +
+        "display:flex;justify-content:flex-end;gap:8px;";
+    const mkBtn = (label, primary) => {
+        const b = document.createElement("button");
+        b.textContent = label;
+        b.style.cssText = [
+            "padding:6px 16px", "border-radius:5px", "cursor:pointer",
+            "font:bold 12px 'Segoe UI',Arial", "outline:none",
+            primary ? "background:#3a5a8a" : "background:#2a2a3a",
+            primary ? "border:1px solid #4a7ac0" : "border:1px solid #3a3a5a",
+            primary ? "color:#dce8ff" : "color:#b0b0c0",
+        ].join(";");
+        return b;
+    };
+    const cancelBtn = mkBtn(cancelLabel, false);
+    const okBtn = mkBtn(confirmLabel, true);
+    foot.appendChild(cancelBtn); foot.appendChild(okBtn);
+    box.appendChild(foot);
+
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    // position
+    requestAnimationFrame(() => {
+        const r = box.getBoundingClientRect();
+        let x, y;
+        if (screenPos) {
+            x = screenPos.x; y = screenPos.y;
+        } else {
+            x = (window.innerWidth - r.width) / 2;
+            y = (window.innerHeight - r.height) / 2;
+        }
+        x = Math.min(Math.max(8, x), window.innerWidth - r.width - 8);
+        y = Math.min(Math.max(8, y), window.innerHeight - r.height - 8);
+        box.style.left = `${x}px`; box.style.top = `${y}px`;
+    });
+
+    const done = (fn) => { overlay.remove(); document.removeEventListener("keydown", onKey, true); fn?.(); };
+    const onKey = (ev) => {
+        if (ev.key === "Enter")  { ev.preventDefault(); ev.stopPropagation(); done(onConfirm); }
+        if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); done(onCancel); }
+    };
+    okBtn.addEventListener("click", () => done(onConfirm));
+    cancelBtn.addEventListener("click", () => done(onCancel));
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) done(onCancel); });
+    document.addEventListener("keydown", onKey, true);
+    requestAnimationFrame(() => okBtn.focus());
+}
+
+/**
  * Toast-Notification wenn kein Textfeld fokussiert war.
  * If nodePos is provided, toast appears above the node instead of bottom-center.
  */
@@ -2183,6 +2275,7 @@ app.registerExtension({
                         // Dedicated integer input — no decimals, range 1-8
                         document.getElementById("uls-weight-input")?.remove();
                         const canvasScale = app.canvas?.ds?.scale ?? 1;
+                        const orderClickPos = { x: e.clientX, y: e.clientY }; // for the conflict dialog
                         const el = document.createElement("div");
                         el.id = "uls-weight-input";
                         el.style.cssText = [
@@ -2227,7 +2320,7 @@ app.registerExtension({
                             if (r.bottom > window.innerHeight - 8) el.style.top  = `${window.innerHeight - r.height - 8}px`;
                             inp.focus(); inp.select();
                         });
-                        const applyOrder = () => {
+const applyOrder = () => {
                             el.remove();
                             if (!uls.groupOrder) uls.groupOrder = {};
                             const raw = parseInt(inp.value, 10);
@@ -2237,21 +2330,70 @@ app.registerExtension({
                                 return;
                             }
                             const n = Math.max(1, Math.min(8, raw));
-                            // Reject if another group already has this number
+
+                            // Which group (if any) currently holds this number?
                             const conflict = Object.entries(uls.groupOrder)
                                 .find(([g, num]) => g !== row.group && num === n);
+
                             if (conflict) {
-                                uls._orderConflictGroup = conflict[0];
-                                app.graph?.setDirtyCanvas(true, false);
-                                setTimeout(() => {
-                                    uls._orderConflictGroup = null;
-                                    app.graph?.setDirtyCanvas(true, false);
-                                }, 1200);
+                                const otherGroup = conflict[0];
+                                // Is the conflicting group still present among the
+                                // live rows? A group goes "orphaned" when no active
+                                // LoRA row carries that category anymore, yet its
+                                // groupOrder entry lingers (invisible, no badge to
+                                // see or clear). Such a ghost has no say — reclaim
+                                // its number silently. Only a CURRENTLY VISIBLE
+                                // group triggers a confirm, because that's a real
+                                // user-facing collision they can act on.
+                                const liveGroups = new Set(
+                                    (uls.rows || [])
+                                        .map(r => r && r.group)
+                                        .filter(g => g && g !== "—"));
+                                const otherIsOrphan = !liveGroups.has(otherGroup);
+
+                                if (otherIsOrphan) {
+                                    // Reclaim from the ghost — drop its stale entry.
+                                    delete uls.groupOrder[otherGroup];
+                                    uls.groupOrder[row.group] = n;
+                                    this._ulsSync(); app.graph?.setDirtyCanvas(true, false);
+                                    return;
+                                }
+
+                                // Visible collision → ask before stealing the slot.
+                                const otherLabel = otherGroup.toUpperCase();
+                                const thisLabel = row.group.toUpperCase();
+                                // anchor the dialog near the click
+                                const sp = orderClickPos;
+                                showConfirmDialog({
+                                    title: "Stack order already in use",
+                                    message:
+                                        `Stack order ${n} is already assigned to group ` +
+                                        `"${otherLabel}".\n\nReassign ${n} to "${thisLabel}"? ` +
+                                        `"${otherLabel}" will be left without an order number.`,
+                                    confirmLabel: `Reassign to ${thisLabel}`,
+                                    cancelLabel: "Keep current",
+                                    screenPos: sp,
+                                    onConfirm: () => {
+                                        delete uls.groupOrder[otherGroup];
+                                        uls.groupOrder[row.group] = n;
+                                        this._ulsSync(); app.graph?.setDirtyCanvas(true, false);
+                                    },
+                                    onCancel: () => {
+                                        // Flash the existing holder so the user sees who owns it.
+                                        uls._orderConflictGroup = otherGroup;
+                                        app.graph?.setDirtyCanvas(true, false);
+                                        setTimeout(() => {
+                                            uls._orderConflictGroup = null;
+                                            app.graph?.setDirtyCanvas(true, false);
+                                        }, 1200);
+                                    },
+                                });
                                 return;
                             }
                             uls.groupOrder[row.group] = n;
                             this._ulsSync(); app.graph?.setDirtyCanvas(true, false);
                         };
+
                         inp.addEventListener("keydown", (ev) => {
                             if (ev.key === "Enter")  { ev.preventDefault(); applyOrder(); }
                             if (ev.key === "Escape") { el.remove(); }

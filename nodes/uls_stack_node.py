@@ -2037,7 +2037,13 @@ class ULSTokenCounter:
         over_limit = (pos_count > model_limit) or (neg_count > model_limit)
 
         # Build report
-        lines = [
+        lines = []
+        if over_limit:
+            # The loud alert is now the native ComfyUI toast (uls_token_toast.js,
+            # visible anywhere). Keep a compact one-line marker in the report for
+            # anyone reading the text output directly.
+            lines.append(">>> ⚠ TOKEN LIMIT EXCEEDED — see details below <<<")
+        lines += [
             "═══ Polyhedron Token Counter ═══",
             f"  Limit       : {model_limit} tokens",
             f"  Warn at     : {warn_at} tokens ({int(warn_threshold * 100)}%)",
@@ -2073,16 +2079,24 @@ class ULSTokenCounter:
         # Actionable hints
         hints = []
         if over_limit:
-            hints.append("⚠ OVER LIMIT — kijai's WanVideoSampler will crash with")
-            hints.append("    'RuntimeError: Trying to create tensor with negative dimension'")
-            hints.append("  Options:")
-            hints.append("    • Shorten prompt (drop redundant tags, remove (word:1.x) syntax")
-            hints.append("      — WAN/UMT5 ignores ComfyUI weight syntax, it just eats tokens)")
-            hints.append("    • Use kijai's WanVideoTextEncode node instead of CLIPTextEncode +")
-            hints.append("      WanVideoTextEmbedBridge — it truncates silently at 512.")
+            over_by = max(pos_count, neg_count) - model_limit
+            hints.append(f"⚠ OVER LIMIT by {over_by} token(s) — the prompt exceeds the")
+            hints.append(f"  text encoder's {model_limit}-token budget. Depending on how the")
+            hints.append("  prompt is encoded, the surplus is either silently truncated")
+            hints.append("  (tail of the prompt is dropped) or the sampler hard-crashes:")
+            hints.append("    kijai WanVideoSampler → 'RuntimeError: Trying to create")
+            hints.append("    tensor with negative dimension'. Either way, fix it:")
+            hints.append("    • Shorten the prompt — drop redundant tags and remove any")
+            hints.append("      (word:1.x) weight syntax (WAN/UMT5 ignores the weighting")
+            hints.append("      but still spends tokens on the digits and parentheses).")
+            hints.append("    • Or route through kijai's WanVideoTextEncode, which")
+            hints.append("      truncates silently at the limit instead of crashing.")
         elif (pos_count >= warn_at) or (neg_count >= warn_at):
-            hints.append("⚠ Approaching limit — quality degrades noticeably above ~70% of limit")
-            hints.append("  (motion slows, 'grid' patterns appear in output — kijai issue #1781).")
+            pct = int(round(warn_threshold * 100))
+            hints.append(f"⚠ Approaching limit — at or above the {pct}% warn threshold")
+            hints.append(f"  ({warn_at}/{model_limit} tokens). Quality tends to degrade as the")
+            hints.append("  budget fills (motion slows, 'grid' patterns appear in output")
+            hints.append("  — kijai issue #1781). Consider trimming before you hit the cap.")
         if method == "heuristic":
             hints.append("ℹ For exact counts: `pip install transformers` and ensure the UMT5-XXL")
             hints.append("  tokenizer is downloaded (first online use will cache it).")
@@ -2095,7 +2109,19 @@ class ULSTokenCounter:
         report = "\n".join(lines)
         print(f"\n[PLS Tokens]\n{report}\n")
 
-        return (report, pos_count, neg_count, over_limit, trig_count)
+        # also hand the frontend structured numbers via the UI channel so an
+        # onExecuted hook can raise a native ComfyUI toast on over-limit WITHOUT
+        # parsing the report text. (Backend can't toast directly.)
+        ui = {"pls_tokens": [{
+            "over_limit":   bool(over_limit),
+            "pos":          int(pos_count),
+            "neg":          int(neg_count),
+            "limit":        int(model_limit),
+            "warn_at":      int(warn_at),
+            "near_limit":   bool((pos_count >= warn_at) or (neg_count >= warn_at)),
+        }]}
+        return {"ui": ui,
+                "result": (report, pos_count, neg_count, over_limit, trig_count)}
 
     @staticmethod
     def _status(count: int, limit: int, warn_at: int) -> str:

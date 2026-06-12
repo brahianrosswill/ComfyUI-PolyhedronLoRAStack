@@ -128,7 +128,7 @@ _node_count = len(NODE_CLASS_MAPPINGS)
 _bridge_str = "✅" if _BRIDGE_OK else "⚠ unavailable"
 print(f"""
 ⚡ ============================================================
-   Polyhedron LoRA Stack  v313
+   Polyhedron LoRA Stack  v320
    {_node_count} Nodes  |  Pillow: {'✅' if _HAS_PIL else '❌'}  |  requests: {'✅' if _HAS_REQUESTS else '❌'}  |  Bridge: {_bridge_str}
 ⚡ ============================================================
 """)
