@@ -376,11 +376,18 @@ class ULSWanBridge:
                 f"{type(_dm_diag).__name__ if _dm_diag is not None else 'None'}"
             )
 
-        # --- Information only, no gating ----------------------------------------
+        # --- Gating: non-WAN is rejected; every WAN variant passes through -------
+        # Only "non-wan" is a hard error (FLUX / SDXL / SD1.5). core-wan,
+        # kijai-wan and other-wan are real Wan models and must keep working.
+        # "unknown" is intentionally NOT blocked: it can be a legitimate Wan
+        # model with an unusual wrapper structure, and the ModelPatcher type
+        # check above already rejects genuine non-MODEL garbage.
         if kind == "non-wan":
-            print(
-                f"[ULSWanBridge] ⚠ input does not look like a Wan model "
-                f"({mod_name}.{cls_name}) — forwarding anyway."
+            raise ValueError(
+                f"[ULSWanBridge] These Bridge nodes support WAN models only. "
+                f"Connected model is {mod_name}.{cls_name}, which is not a WAN "
+                f"model. Connect a WAN UNET (e.g. via UNETLoader) — FLUX / SDXL / "
+                f"SD1.5 belong in Core's KSampler, not the WAN bridge."
             )
         elif kind == "core-wan":
             _vlog(

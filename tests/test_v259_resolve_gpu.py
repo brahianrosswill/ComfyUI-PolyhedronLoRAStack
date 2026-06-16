@@ -41,7 +41,7 @@ torch = pytest.importorskip("torch")
 # ── Load the SHIPPED v259 function straight from the source file ─────────────
 def _load_shipped_resolve():
     here = os.path.dirname(os.path.abspath(__file__))
-    backend = os.path.normpath(os.path.join(here, "..", "nodes", "uls_stack_node.py"))
+    backend = os.path.normpath(os.path.join(here, "..", "nodes", "uls_merge_math.py"))
     src = open(backend, encoding="utf-8").read()
     tree = ast.parse(src)
     for node in ast.walk(tree):

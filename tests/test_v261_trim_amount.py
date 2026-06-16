@@ -25,12 +25,12 @@ import pathlib
 import sys
 
 # ── Load the shipped function in isolation (tests real code, not a copy) ──────
-SRC = pathlib.Path(__file__).resolve().parents[1] / "nodes" / "uls_stack_node.py"
+SRC = pathlib.Path(__file__).resolve().parents[1] / "nodes" / "uls_merge_math.py"
 _tree = ast.parse(SRC.read_text(encoding="utf-8"))
 _fn = next((n for n in _tree.body
             if isinstance(n, ast.FunctionDef) and n.name == "_trim_channel_indices"), None)
 if _fn is None:
-    print("FAIL: _trim_channel_indices not found in nodes/uls_stack_node.py")
+    print("FAIL: _trim_channel_indices not found in nodes/uls_merge_math.py")
     sys.exit(1)
 
 _ns = {}

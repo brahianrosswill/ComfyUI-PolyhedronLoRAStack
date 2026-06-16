@@ -72,7 +72,7 @@ def _analyze_group(names, weights, trim_keep, max_layers, dev, torch, label=""):
     Never raises for data issues — returns {'error': msg} instead.
     `label` is the group name, used only for the live console progress."""
     raw, nm, ws = [], [], []
-    for name, w in zip(names, weights):
+    for name, w in zip(names, weights, strict=True):
         if not name or name == "None":
             continue
         path = folder_paths.get_full_path("loras", name)
@@ -88,7 +88,7 @@ def _analyze_group(names, weights, trim_keep, max_layers, dev, torch, label=""):
         return {"error": "fewer than 2 loadable LoRAs"}
 
     convs = [_detect_convention(td) for td in raw]
-    keep = [i for i, (c, td) in enumerate(zip(convs, raw)) if c is not None and not _has_mid_tensor(td)]
+    keep = [i for i, (c, td) in enumerate(zip(convs, raw, strict=True)) if c is not None and not _has_mid_tensor(td)]
     if len({convs[i] for i in keep}) > 1:
         from collections import Counter
         majority = Counter(convs[i] for i in keep).most_common(1)[0][0]
@@ -322,7 +322,7 @@ class ULSResolveInspector:
             grp_label = f"[{group}]" if group != "—" else "[—]"
             flag = "   ← Resolve active" if (resolve and n >= 2) else ""
             L.append(f"  {grp_label} {tag}  ({n} LoRA{'s' if n != 1 else ''}){flag}")
-            for r, w in zip(grp_rows, grp_weights):
+            for r, w in zip(grp_rows, grp_weights, strict=True):
                 L.append(f"     • {_short_name(r.get('name',''), 34):<34} ×{w}")
 
             if resolve and n >= 2:

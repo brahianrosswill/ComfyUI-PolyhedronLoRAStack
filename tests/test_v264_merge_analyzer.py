@@ -21,6 +21,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STACK = os.path.join(HERE, "..", "nodes", "uls_stack_node.py")
+MERGEMATH = os.path.join(HERE, "..", "nodes", "uls_merge_math.py")  # v348: _resolve_sign_elect moved here
 ANALYZER = os.path.join(HERE, "..", "nodes", "uls_resolve_inspector.py")
 
 
@@ -41,7 +42,7 @@ def main():
     except ImportError:
         print("SKIP test_v264 — torch not available"); return 0
 
-    resolve = _load_fn(STACK, "_resolve_sign_elect")
+    resolve = _load_fn(MERGEMATH, "_resolve_sign_elect")
     true_delta = _load_fn(ANALYZER, "_true_resolved_delta")
 
     torch.manual_seed(0)

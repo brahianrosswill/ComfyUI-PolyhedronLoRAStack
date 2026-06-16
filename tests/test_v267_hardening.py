@@ -50,6 +50,11 @@ def main():
 
     routes = open(ROUTES, encoding="utf-8").read()
     stack = open(STACK, encoding="utf-8").read()
+    # v348: the CUDA RNG-state guard lives in _resolve_sign_elect, which moved to
+    # uls_merge_math.py — append it so the N-7 positive check still finds it.
+    _MM = os.path.join(ROOT, "nodes", "uls_merge_math.py")
+    if os.path.exists(_MM):
+        stack += "\n" + open(_MM, encoding="utf-8").read()
     sigma = open(SIGMA, encoding="utf-8").read()
     prevgen = open(PREVGEN, encoding="utf-8").read()
     ulsjs = open(ULSJS, encoding="utf-8").read()

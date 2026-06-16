@@ -16,6 +16,7 @@ Endpoints (each registered under both the bare path and the /api alias):
 
 import os
 import json
+import re
 import mimetypes
 import folder_paths
 
@@ -478,6 +479,12 @@ async def handle_civitai_fetch(request: web.Request) -> web.Response:
 
         if not model_hash:
             return web.json_response({"ok": False, "error": "No sshs_model_hash in safetensors header"})
+
+        # v347: the hash is interpolated into a URL path below — accept only hex
+        # (SHA256 or the shorter AutoV2 hash) so a crafted header value cannot
+        # manipulate the outgoing request URL.
+        if not re.fullmatch(r"[0-9a-fA-F]{8,64}", model_hash):
+            return web.json_response({"ok": False, "error": "Malformed model hash in safetensors header"})
 
         ua = {"User-Agent": "ComfyUI-PolyhedronLoRAStack/1.0"}
         api_url = f"https://civitai.com/api/v1/model-versions/by-hash/{model_hash}"

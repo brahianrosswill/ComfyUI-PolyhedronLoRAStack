@@ -41,6 +41,12 @@ def check(label, cond):
 
 with open(SRC, encoding="utf-8") as f:
     src = f.read()
+# v348: _is_te_base + _TE_KEY_PREFIXES moved to uls_merge_math.py; _row_clip_weight
+# stayed in uls_stack_node.py — concatenate both so every picked helper is found.
+_MM = os.path.join(HERE, "..", "nodes", "uls_merge_math.py")
+if os.path.exists(_MM):
+    with open(_MM, encoding="utf-8") as f:
+        src += "\n" + f.read()
 tree = ast.parse(src)
 
 # ── [1] Extract + exec the pure helpers ────────────────────────────────────
@@ -109,7 +115,7 @@ with open(JS, encoding="utf-8") as f:
     js = f.read()
 check("frontend serializes wClip (4 mappers)",  # v309: +2 Engine mappers
       js.count("wClip: r.wClip,") == 4)
-check("stack shift-click edits CLIP", "\"CLIP Strength\"" in js)  # v313 label
+check("stack shift-click edits CLIP", "\"CLIP Strength\"" in js)  # v314 label
 check("two-line cell rendered", js.count("row.wClip.toFixed(2)") == 2)
 
 # ── [3] combined-zero filter behaviour (pure re-impl of the new rule) ──────

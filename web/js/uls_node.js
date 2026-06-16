@@ -103,7 +103,7 @@ function ensurePreview(name) {
                     octx.drawImage(vid, 0, 0, 120, 120);
                     const snap = new Image();
                     snap.onload = () => {
-                        if (!entry.img) entry.img = snap;  // only if no still image exists yet
+                        if (!entry.img) entry.img = snap;  // nur wenn kein Standbild vorhanden
                         if (--pending === 0) entry.loaded = true;
                         app.graph?.setDirtyCanvas(true, false);
                     };
@@ -143,17 +143,17 @@ async function loadLoraList() {
     _loraListLoading = false;
 }
 
-// Load immediately when the extension initialises
+// Sofort laden wenn Extension initialisiert wird
 loadLoraList();
 
 // ─── Fokus-Tracker: merkt sich das zuletzt aktive Textfeld ────────────────
 //
-// ComfyUI CLIP Text Encode + ULS dual prompt textareas are real DOM
-// elements. We track the last focused text field globally so that a
-// click on a LoRA row in the canvas can insert the trigger there.
+// ComfyUI CLIP Text Encode + ULS Dual Prompt Textareas sind echte DOM-
+// Elemente. Wir tracken das zuletzt fokussierte Textfeld global, damit
+// ein Klick auf eine LoRA-Zeile im Canvas den Trigger dort einfügen kann.
 //
-// Why not document.activeElement? Because the canvas click steals the
-// focus immediately — we need the value from BEFORE the click.
+// Warum nicht document.activeElement? Weil der Canvas-Klick das Fokus
+// sofort weg nimmt — wir brauchen den Wert von VOR dem Klick.
 
 let _lastFocusedTextarea = null;
 let _lastCursorPos       = 0;  // selectionStart zum Zeitpunkt des Blur
@@ -175,14 +175,14 @@ document.addEventListener("selectionchange", () => {
 document.addEventListener("focusout", (e) => {
     const el = e.target;
     if (el === _lastFocusedTextarea) {
-        // Remember the cursor position when leaving the field
+        // Cursor-Position beim Verlassen des Feldes merken
         _lastCursorPos = el.selectionStart ?? el.value?.length ?? 0;
     }
 }, true);
 
 /**
- * Derives all trigger words of a LoRA — returns an array.
- * Order: longest first (most complete first).
+ * Leitet alle Trigger-Words einer LoRA ab — gibt ein Array zurück.
+ * Reihenfolge: längste zuerst (vollständigste zuerst).
  *
  * Strategie:
  *  1. Metadaten → alle komma-getrennten Trigger-Words
@@ -207,7 +207,7 @@ function deriveTriggers(loraName, meta) {
             .map(s => s.trim())
             .filter(s => s.length > 0 && s.length < 60);
         if (parts.length > 0) {
-            // Longest first
+            // Längste zuerst
             return parts.sort((a, b) => b.length - a.length);
         }
     }
@@ -236,15 +236,15 @@ function deriveTriggers(loraName, meta) {
     return [base.split("_")[0] || base];
 }
 
-// Compat wrapper for a single trigger (fallback)
+// Compat-Wrapper für einzelnen Trigger (Fallback)
 function deriveTrigger(loraName, meta) {
     return deriveTriggers(loraName, meta)[0] || "";
 }
 
 /**
- * Inserts text at the stored cursor position in the last text field.
- * A natural input event is fired afterwards so ComfyUI picks up
- * the changed value.
+ * Fügt Text an der gespeicherten Cursor-Position im letzten Textfeld ein.
+ * Danach wird ein natürliches Input-Event gefeuert damit ComfyUI
+ * den geänderten Wert mitbekommt.
  */
 function insertTriggerAtCursor(triggerText) {
     const el  = _lastFocusedTextarea;
@@ -256,7 +256,7 @@ function insertTriggerAtCursor(triggerText) {
     const pos  = _lastCursorPos;
     const val  = el.value || "";
 
-    // Whitespace padding: insert a space before/after where needed
+    // Leerzeichen-Padding: füge ein Leerzeichen vor/nach ein wenn nötig
     const before = val.slice(0, pos);
     const after  = val.slice(pos);
     const needSpaceBefore = before.length > 0 && !/\s$/.test(before);
@@ -266,7 +266,7 @@ function insertTriggerAtCursor(triggerText) {
     const newVal = before + insert + after;
     const newPos = pos + insert.length;
 
-    // Set the value (React-compatible for ComfyUI widgets)
+    // Wert setzen (React-kompatibel für ComfyUI-Widgets)
     const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
         window.HTMLTextAreaElement.prototype, "value"
     )?.set;
@@ -276,12 +276,12 @@ function insertTriggerAtCursor(triggerText) {
         el.value = newVal;
     }
 
-    // Move the cursor to the end of the inserted text
+    // Cursor ans Ende des eingefügten Texts setzen
     el.selectionStart = newPos;
     el.selectionEnd   = newPos;
     _lastCursorPos    = newPos;
 
-    // Fire ComfyUI events
+    // ComfyUI Events feuern
     el.dispatchEvent(new Event("input",  { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
 
@@ -425,8 +425,8 @@ function showInsertToast(text, ok, nodePos) {
 }
 
 /**
- * Shows a small popup with all available triggers to pick from.
- * Clicking a trigger inserts it in (trigger:weight) format.
+ * Zeigt ein kleines Popup mit allen verfügbaren Triggern zur Auswahl.
+ * Klick auf einen Trigger fügt ihn im Format (trigger:weight) ein.
  */
 function openTriggerSelectPopup(triggers, weight, e) {
     document.getElementById("uls-trigger-select")?.remove();
@@ -949,7 +949,7 @@ function checkConflicts(rows) {
     }
 
     // Weight sums — DARE-Merging bei Gruppen reduziert Interferenz,
-    // hence the threshold is more generous than with the old sequential stacking.
+    // daher ist der Threshold großzügiger als beim alten sequentiellen Stacking.
     const sumH = active.reduce((s, r) => s + Math.abs(r.wHigh), 0);
     const sumL = active.reduce((s, r) => s + Math.abs(r.wLow),  0);
     if (sumH > 10) warnings.push({ row: -1, level: "warn",
@@ -1188,7 +1188,7 @@ app.registerExtension({
     async beforeRegisterNodeDef(nodeType, nodeData) {
         if (nodeData.name !== NODE_TYPE) return;
 
-        // LoRA list: global variable — loaded on first open
+        // LoRA-Liste: globale Variable - wird beim ersten Öffnen geladen
         // (loraList ist global oben im File definiert)
 
         // ── onCreate ────────────────────────────────────────────────────
@@ -1236,7 +1236,7 @@ app.registerExtension({
             app.graph?.setDirtyCanvas(true, false);
         };
 
-        // onResize: prevents ComfyUI from shrinking the node below our minimum size
+        // onResize: verhindert dass ComfyUI die Node unter unsere Mindestgröße schrumpft
         nodeType.prototype.onResize = function (size) {
             if (!this._uls?.rows) return;
             const warns = checkConflicts(this._uls.rows).filter(w => w.row === -1).length;
@@ -1276,7 +1276,7 @@ app.registerExtension({
         const _orig_cfg = nodeType.prototype.onConfigure;
         nodeType.prototype.onConfigure = function (o) {
             _orig_cfg?.apply(this, arguments);
-            // Safely initialise _uls in case onNodeCreated has not run yet
+            // _uls sicher initialisieren falls onNodeCreated noch nicht lief
             if (!this._uls || typeof this._uls !== "object" || !this._uls.rows) {
                 this._uls = { rows: [newRow()], mult: 1.0,
                               hoverRow: -1, hoverZone: "", dragSrc: -1, dragDest: -1,
@@ -1292,7 +1292,7 @@ app.registerExtension({
             if (!this._uls.groupTrimAmount) this._uls.groupTrimAmount = {};
             if (this._uls.flatMode === undefined) this._uls.flatMode = false;
             if (!this._uls.groupOrder) this._uls.groupOrder = {};
-            // Always hide the uls_config widget
+            // uls_config Widget immer verstecken
             this._ulsHideConfigWidget();
             if (o._uls && this._uls) {
                 try {
@@ -1369,20 +1369,20 @@ app.registerExtension({
             }
         };
 
-        // Sync to the hidden widget for the Python backend
+        // Sync zum hidden widget für Python-Backend
         nodeType.prototype._ulsSync = function () {
             if (!this._uls || !this.widgets) return;
             let w = this.widgets.find(x => x.name === "uls_config");
             if (!w) {
                 w = this.addWidget("text", "uls_config", "", () => {});
             }
-            // Always hide the widget — the value is managed internally
+            // Widget immer verstecken — Wert wird intern verwaltet
             w.hidden = true;
             w.type = "hidden";
             w.computeSize = () => [0, -4];
             w.tooltip = "";
             w.options = w.options || {};
-            w.options.hideOnZoom = true;  // takes up no space
+            w.options.hideOnZoom = true;  // Nimmt keinen Platz ein
             w.value = JSON.stringify({
                 rows: this._uls.rows.map(r => {
                     const wt = (typeof r.wLow === "number" ? r.wLow
@@ -1406,7 +1406,7 @@ app.registerExtension({
                 groupOrder: this._uls.groupOrder || {},
                 dare_variant: "channel",
             });
-            // Hide the widget after every sync
+            // Widget nach jedem Sync verstecken
             this._ulsHideConfigWidget?.();
         };
 
@@ -1440,7 +1440,7 @@ app.registerExtension({
                 ctx.strokeStyle = "#c060ff";
                 ctx.lineWidth = 1.2;
                 ctx.globalAlpha = 0.8;
-                // Outer hexagon
+                // Äußeres Hexagon
                 ctx.beginPath();
                 for (let k = 0; k < 6; k++) {
                     const a = (k * Math.PI / 3) - Math.PI / 6;
@@ -1611,13 +1611,13 @@ app.registerExtension({
                 const thumbX   = PAD + 48;
                 const insertW  = 28;
                 const GRP_W    = 50;
-                const WEIGHT_W = 72;  // wide enough for ◀ value ▶
+                const WEIGHT_W = 72;  // breit genug für ◀ value ▶
                 const ARROW_W  = 14;  // Breite jedes Pfeil-Buttons
                 const DEL_W    = 18;
                 const btnGap   = 4;
                 const nameX    = thumbX + THUMB_W + 4;
                 const contentR = W - PAD;
-                // From the right: ✕ + gap + [◀ Weight ▶] + gap + GRP + gap + insert + gap
+                // Von rechts: ✕ + gap + [◀ Weight ▶] + gap + GRP + gap + insert + gap
                 const delX     = contentR - DEL_W;
                 const weightX  = delX - btnGap - WEIGHT_W;
                 const grpPillX = weightX - btnGap - GRP_W;
@@ -1625,8 +1625,8 @@ app.registerExtension({
                 const nameMaxW = insertX - btnGap - nameX;
                 // Pfeil-Positionen innerhalb der Weight-Box
                 const wArrowLX = weightX;                       // ◀ links
-                const wArrowRX = weightX + WEIGHT_W - ARROW_W; // ▶ on the right
-                const wValX    = weightX + ARROW_W;             // value area
+                const wArrowRX = weightX + WEIGHT_W - ARROW_W; // ▶ rechts
+                const wValX    = weightX + ARROW_W;             // Wert-Bereich
 
                 const nameHover   = isHov && uls.hoverZone === "name";
                 const insertHover = isHov && uls.hoverZone === "insert";
@@ -1784,7 +1784,7 @@ app.registerExtension({
                     }
                 }
 
-                // Weight box with ◀ ▶ buttons
+                // Weight Box mit ◀ ▶ Buttons
                 ctx.fillStyle = "#221a10";
                 roundRect(ctx, weightX, y + 5, WEIGHT_W, 18, 4); ctx.fill();
                 ctx.strokeStyle = "#f0a03044"; ctx.lineWidth = 0.5;
@@ -1801,7 +1801,7 @@ app.registerExtension({
                 roundRect(ctx, wArrowRX, y + 5, ARROW_W, 18, 4); ctx.fill();
                 ctx.fillStyle = wIncHover ? "#f0a030" : "#7a5018";
                 ctx.fillText("▶", wArrowRX + ARROW_W / 2, y + ROW_H / 2);
-                // Value
+                // Wert
                 ctx.fillStyle = "#f0a030"; ctx.font = "bold 11px monospace";
                 if (typeof row.wClip === "number" && row.wClip !== row.wLow) {
                     // v302: decoupled CLIP strength — two-line cell
@@ -1856,7 +1856,7 @@ app.registerExtension({
             ctx.fillRect(0, addY, W, ROW_H);
             ctx.strokeStyle = "#252535"; ctx.lineWidth = 0.5;
             ctx.beginPath(); ctx.moveTo(0, addY); ctx.lineTo(W, addY); ctx.stroke();
-            // "＋" centered
+            // "＋" zentriert
             ctx.fillStyle = addHov ? "#6acc6a" : "#3a5a3a";
             ctx.font = "bold 14px Arial";
             ctx.textAlign = "center";
@@ -1930,7 +1930,7 @@ app.registerExtension({
             ctx.restore();
         };
 
-        // ── Mouse wheel: change weight by scrolling ──────────────────
+        // ── Mouse Wheel: Weight per Scroll ändern ────────────────────
 
         nodeType.prototype.onMouseWheel = function (e, [lx, ly]) {
             const uls = this._uls; if (!uls) return false;
@@ -2000,7 +2000,7 @@ app.registerExtension({
             const newZoneAdd = onAddRow ? "addRow" : "";
 
             const inFooter = ly > this.size[1] - FOOTER_H;
-            // ℹ hover in the footer
+            // ℹ hover im Footer
             if (inFooter) {
                 const footY2   = this.size[1] - FOOTER_H + 6;
                 const sliderMid2 = footY2 + 14;
@@ -2054,7 +2054,7 @@ app.registerExtension({
 
                 if (zone !== uls.hoverZone) { uls.hoverZone = zone; dirty = true; }
 
-                // Preview popup on thumbnail hover
+                // Preview-Popup beim Thumbnail-Hover
                 if (zone === "thumb" && row.name !== "None") {
                     ensurePreview(row.name);
                     const canvas = app.canvas.canvas;
@@ -2072,7 +2072,7 @@ app.registerExtension({
                 closePopup();
             }
 
-            // (slider drag runs through the native pointermove handler — not here)
+            // (Slider-Drag läuft über nativen pointermove-Handler — nicht hier)
 
             // Drag-Dest aktualisieren
             if (uls.dragSrc >= 0 && rowIdx >= 0 && rowIdx !== uls.dragDest) {
@@ -2136,7 +2136,7 @@ app.registerExtension({
                 this._ulsSync(); return true;
             }
 
-            // Zone coordinates (must match the draw code)
+            // Zonen-Koordinaten (müssen mit Draw übereinstimmen)
             const THUMB_W  = 30;
             const thumbX   = PAD + 48;
             const insertW  = 28, btnGap = 4;
@@ -2153,10 +2153,10 @@ app.registerExtension({
             const wArrowLX = weightX;
             const wArrowRX = weightX + WEIGHT_W - ARROW_W;
 
-            // ── ▲▼ Reordering ──────────────────────────────────────────
+            // ── ▲▼ Reihenfolge ─────────────────────────────────────────
             if (ri >= 0 && ri < uls.rows.length && lx >= PAD && lx <= PAD + 14) {
                 const y = HEADER_H + ri * ROW_H;
-                // ▲ Move up (upper half of the row)
+                // ▲ Nach oben (obere Hälfte der Row)
                 if (ly >= y + 1 && ly <= y + ROW_H / 2) {
                     if (ri > 0) {
                         const [r] = uls.rows.splice(ri, 1);
@@ -2166,7 +2166,7 @@ app.registerExtension({
                     }
                     return true;
                 }
-                // ▼ Move down (lower half of the row)
+                // ▼ Nach unten (untere Hälfte der Row)
                 if (ly >= y + ROW_H / 2 && ly <= y + ROW_H - 1) {
                     if (ri < uls.rows.length - 1) {
                         const [r] = uls.rows.splice(ri, 1);
@@ -2184,7 +2184,7 @@ app.registerExtension({
                 return true;
             }
 
-            // ── ↵ Insert button: insert trigger into CLIP prompt ───────
+            // ── ↵ Insert-Button: Trigger in CLIP einfügen ──────────────
             if (lx >= insertX && lx <= insertX + insertW) {
                 const toastPos = { x: e.clientX - 10, y: e.clientY - 36 };
 
@@ -2207,7 +2207,7 @@ app.registerExtension({
                 return true;
             }
 
-            // ── Name button: pick a LoRA via DOM select ────────────────
+            // ── Name-Button: LoRA auswählen via DOM-Select ─────────────
             if (lx >= nameX - 2 && lx <= nameX + nameMaxW + 2) {
                 openLoraSelect(row, _loraList, e, this);
                 return true;
@@ -2320,7 +2320,7 @@ app.registerExtension({
                             if (r.bottom > window.innerHeight - 8) el.style.top  = `${window.innerHeight - r.height - 8}px`;
                             inp.focus(); inp.select();
                         });
-const applyOrder = () => {
+                        const applyOrder = () => {
                             el.remove();
                             if (!uls.groupOrder) uls.groupOrder = {};
                             const raw = parseInt(inp.value, 10);
@@ -2393,7 +2393,6 @@ const applyOrder = () => {
                             uls.groupOrder[row.group] = n;
                             this._ulsSync(); app.graph?.setDirtyCanvas(true, false);
                         };
-
                         inp.addEventListener("keydown", (ev) => {
                             if (ev.key === "Enter")  { ev.preventDefault(); applyOrder(); }
                             if (ev.key === "Escape") { el.remove(); }
@@ -2454,7 +2453,7 @@ const applyOrder = () => {
             uls.dragSrc = -1; uls.dragDest = -1;
             if (src !== dst && dst >= 0 && dst < uls.rows.length) {
                 const [r] = uls.rows.splice(src, 1);
-                // Insert: dst > src is already corrected by the splice
+                // Einfügen: wenn dst > src schon korrigiert durch splice
                 const insertAt = dst > src ? dst - 1 : dst;
                 uls.rows.splice(insertAt, 0, r);
                 this._ulsSync();
@@ -2463,12 +2462,23 @@ const applyOrder = () => {
             return true;
         };
 
-        // Right-click context menu (on the row, NOT on the GRP pill — that
-        // has its own popup. This tree menu only covers row management.)
+        // Rechtsklick-Kontextmenü (auf Row, NICHT auf GRP-Pill — das hat
+        // sein eigenes Popup. Dieses Tree-Menü deckt nur Row-Verwaltung ab.)
         const _origMenu = nodeType.prototype.getExtraMenuOptions;
         nodeType.prototype.getExtraMenuOptions = function (canvas, options) {
             _origMenu?.apply(this, arguments);
             const uls = this._uls; if (!uls) return;
+            // Group/List mode toggle in the context menu — always available
+            // (independent of the hovered row). The canvas pill stays the
+            // primary control; this is just a convenient right-click alternative.
+            options.push(null, {
+                content: uls.flatMode ? "⬡ Switch to Group Stack" : "⬡ Switch to List Stack",
+                callback: () => {
+                    uls.flatMode = !uls.flatMode;
+                    this._ulsSync?.();
+                    app.graph?.setDirtyCanvas(true, false);
+                },
+            });
             const i   = uls.hoverRow;
             if (i < 0 || i >= uls.rows.length) return;
 
@@ -2616,7 +2626,7 @@ function openGroupPreviewOverlay(row, e, node) {
     });
     el.appendChild(saveBtn);
 
-    // Civitai link (if civitai_id is present)
+    // Civitai-Link (wenn civitai_id vorhanden)
     if (meta?.civitai_id) {
         const civLink = document.createElement("a");
         civLink.href = `https://civitai.com/models/${meta.civitai_id}`;
@@ -2762,7 +2772,7 @@ function openGroupPreviewOverlay(row, e, node) {
     }
     el.appendChild(grpBtns);
 
-    // ── DARE variant picker (only when the group uses a DARE mode) ───────
+    // ── DARE-Variant Auswahl (nur wenn Gruppe einen DARE-Modus hat) ──────
     const _currentMode = ((node?._uls?.groupModes || {})[row.group] || "SEQ").toUpperCase();
     if (_currentMode === "DARE" && row.group !== "—") {
         const dvLabel = document.createElement("div");
@@ -2810,7 +2820,7 @@ function openGroupPreviewOverlay(row, e, node) {
         if (r.bottom > window.innerHeight - 8) el.style.top  = `${e.clientY - r.height}px`;
     });
 
-    // Close on click outside
+    // Schließen bei Klick außerhalb
     const closeH = (ev) => {
         if (!el.contains(ev.target)) {
             el.remove();
@@ -2998,7 +3008,7 @@ function showWeightInput(e, currentVal, onConfirm, label, accent) {
         ev.stopPropagation();
     });
 
-    // Close on click outside — delayed so the input gets focused first
+    // Schließen bei Klick außerhalb — mit Delay damit Input erst fokussiert
     setTimeout(() => {
         const closeHandler = (ev) => {
             if (!el.contains(ev.target)) {
@@ -3011,10 +3021,10 @@ function showWeightInput(e, currentVal, onConfirm, label, accent) {
 }
 
 function openLoraSelect(row, loraList, e, node) {
-    // Close any existing selects
+    // Bestehende Selects schließen
     document.getElementById("uls-lora-select")?.remove();
 
-    // If the list is not loaded yet: load now and reopen after a short pause
+    // Falls Liste noch nicht geladen: jetzt laden und nach kurzer Pause neu öffnen
     if (_loraList.length === 0 && !_loraListLoading) {
         loadLoraList().then(() => openLoraSelect(row, _loraList, e, node));
         return;
@@ -3097,7 +3107,7 @@ function openLoraSelect(row, loraList, e, node) {
                 border-bottom:1px solid #1e1e2a;
                 ${name === row.name ? "background:#1e1e40;" : ""}
             `;
-            // Mini thumbnail if available
+            // Mini-Thumbnail wenn vorhanden
             const pvItem = previewCache.get(name);
             const thumbHtml = pvItem?.img
                 ? `<img src="${pvItem.img.src}" style="width:32px;height:32px;object-fit:cover;border-radius:3px;flex-shrink:0;">`
@@ -3114,7 +3124,7 @@ function openLoraSelect(row, loraList, e, node) {
                 ev.preventDefault();
                 row.name = name;
                 ensurePreview(name);
-                // Load the stored group
+                // Gespeicherte Gruppe laden
                 api.fetchApi(`/uls/groups`)
                     .then(r => r.json())
                     .then(groups => {
@@ -3152,7 +3162,7 @@ function openLoraSelect(row, loraList, e, node) {
         input.focus();
     });
 
-    // Close on click outside or on the canvas
+    // Schließen bei Klick außerhalb oder auf Canvas
     function doClose() {
         if (!document.getElementById("uls-lora-select")) return;
         wrap.remove();
@@ -3835,7 +3845,7 @@ app.registerExtension({
                 app.graph?.setDirtyCanvas(true, false);
             }
 
-            // Preview popup on thumbnail hover (same as stack)
+            // Preview-Popup beim Thumbnail-Hover (same as stack)
             const row = uls.rows[ri];
             if (zone === "thumb" && row?.name !== "None") {
                 ensurePreview(row.name);
