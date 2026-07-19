@@ -150,7 +150,7 @@ print("[8] version triple v350")
 def _read(*p):
     with open(os.path.join(HERE, "..", *p), encoding="utf-8") as f:
         return f.read()
-check("__init__ banner v350", "Polyhedron LoRA Stack  v361" in _read("__init__.py"))
+check("__init__ banner v362", "Polyhedron Suite  v362" in _read("__init__.py"))
 check("uls_compat PLUGIN_VERSION v350", 'PLUGIN_VERSION = "v361"' in _read("web", "js", "uls_compat.js"))
 
 print("=" * 56)

@@ -14,7 +14,7 @@
 import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
-console.log("[Polyhedron LoRA Stack] uls_node.js loaded ✓");
+console.log("[Polyhedron Suite] uls_node.js loaded ✓");
 
 const NODE_TYPE        = "UltimateLoraStack";
 const NODE_TYPE_ENGINE = "ULSAccelerator";   // Polyhedron Engine

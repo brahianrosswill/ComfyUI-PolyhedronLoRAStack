@@ -1,4 +1,4 @@
-# Kompatibilität — Polyhedron LoRA Stack (v257)
+# Kompatibilität — Polyhedron Suite (v257)
 
 Konsolidierter Kompatibilitäts-Vertrag dieses Packs. Faktisch am Code verankert
 (siehe `AUDIT_v256_full.md` für die ausführliche Analyse, `AUDIT_v253_full.md`

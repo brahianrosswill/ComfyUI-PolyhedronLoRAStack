@@ -1,4 +1,4 @@
-# Polyhedron LoRA Stack — dependencies
+# Polyhedron Suite — dependencies
 # Installed automatically by ComfyUI Manager.
 #
 # Note: the loaded nodes themselves need NEITHER Pillow NOR requests —
@@ -12,3 +12,12 @@ Pillow>=9.0.0
 
 # Optional (CLI only): Civitai API + preview download
 requests>=2.28.0
+
+# ---------------------------------------------------------------------------
+# Media Loader / Save (v362) -- still NOT required. Both nodes import these
+# lazily and fall back cleanly:
+#   opencv-python  video thumbnails in the tile grid + the dimension probe
+#   av (PyAV)      shipped by recent ComfyUI builds; only older ones need it
+#                  for video writing and alpha-mask decode
+# Install with:  pip install "polyhedron-lora-stack[media]"
+# ---------------------------------------------------------------------------

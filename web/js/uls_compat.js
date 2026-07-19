@@ -1,5 +1,5 @@
 /**
- * Polyhedron LoRA Stack — Compatibility & Diagnostics Layer
+ * Polyhedron Suite — Compatibility & Diagnostics Layer
  * ═════════════════════════════════════════════════════════
  *
  * Purpose
@@ -46,7 +46,7 @@ import { app } from "../../scripts/app.js";
 // change — they are deliberately NOT in this set.
 const POLY_CANVAS_NODES = new Set(["UltimateLoraStack", "ULSAccelerator"]);
 
-const PLUGIN_VERSION = "v361";
+const PLUGIN_VERSION = "v362";
 // v303: 8s — 3s false-positived on large workflows / slow first draws.
 // LiteGraph culls offscreen nodes (onDrawForeground never runs for them), so
 // the notice can still appear for an offscreen-but-healthy node; the draw
@@ -112,7 +112,7 @@ function warnRendererOnce() {
     console.warn("[Polyhedron] ⚠ " + detail +
         "  (Suppress via Settings → Polyhedron, or set " +
         "window.__POLYHEDRON_COMPAT__ aside for debugging.)");
-    notify("warn", "Polyhedron LoRA Stack — renderer notice", detail, 15000);
+    notify("warn", "Polyhedron Suite — renderer notice", detail, 15000);
 }
 
 // ── v301: visible in-node fallback when the canvas UI never drew ───────────
@@ -240,7 +240,7 @@ app.registerExtension({
     // About-page badge (frontend ignores this field on older versions).
     aboutPageBadges: [
         {
-            label: "Polyhedron LoRA Stack " + PLUGIN_VERSION,
+            label: "Polyhedron Suite " + PLUGIN_VERSION,
             url: "https://civitai.red/user/Polyhedron_AI",
             icon: "pi pi-box",
         },

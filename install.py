@@ -1,5 +1,5 @@
 """
-Polyhedron LoRA Stack — install.py
+Polyhedron Suite — install.py
 ══════════════
 Wird von ComfyUI Manager automatisch beim Installieren der Custom Node
 ausgeführt. Installiert alle Python-Abhängigkeiten.

@@ -1,5 +1,5 @@
 """
-Polyhedron LoRA Stack
+Polyhedron Suite
 """
 import importlib.util
 
@@ -53,6 +53,26 @@ try:
     _SIGMA_OK = True
 except Exception as e:
     print(f"[PLS] ✗ Sigma Schedule nodes unavailable — import failed: {e!r}")
+
+# ── Media I/O group (v362) ──────────────────────────────────
+# Media Loader + Save. Registered as their OWN group so the blocks above stay
+# the Stack's untouched registration: a further node arrives as one more
+# guarded import plus one more mapping entry, nothing else moves. Both nodes
+# are pure add-ons -- no Stack node imports them -- and their server routes
+# live in their own module (nodes/ph_media_routes.py), so uls_routes.py stays
+# upstream's file.
+_MEDIA_OK = _SAVE_OK = False
+try:
+    from .nodes.ph_media_loader import ULSMediaLoader
+    _MEDIA_OK = True
+except Exception as e:
+    print(f"[PLS] ✗ Media Loader unavailable — import failed: {e!r}")
+try:
+    from .nodes.ph_save import ULSSave
+    _SAVE_OK = True
+except Exception as e:
+    print(f"[PLS] ✗ Save unavailable — import failed: {e!r}")
+
 
 # Bridge — fragile, depends on ComfyUI/kijai internals. Already isolated.
 _BRIDGE_OK = False
@@ -138,6 +158,14 @@ if _BRIDGE_OK:
     NODE_DISPLAY_NAME_MAPPINGS["ULSWanBridge"]        = "⬡ Polyhedron Wan Bridge (MODEL → WANVIDEOMODEL)"
     NODE_DISPLAY_NAME_MAPPINGS["ULSWanBridgeReverse"] = "⬡ Polyhedron Wan Bridge (WANVIDEOMODEL → MODEL)"
 
+if _MEDIA_OK:
+    NODE_CLASS_MAPPINGS["ULSMediaLoader"] = ULSMediaLoader
+    NODE_DISPLAY_NAME_MAPPINGS["ULSMediaLoader"] = "⬡ Polyhedron Media Loader"
+
+if _SAVE_OK:
+    NODE_CLASS_MAPPINGS["ULSSave"] = ULSSave
+    NODE_DISPLAY_NAME_MAPPINGS["ULSSave"] = "⬡ Polyhedron Save"
+
 WEB_DIRECTORY = "./web/js"
 
 try:
@@ -146,11 +174,20 @@ try:
 except Exception as e:
     print(f"[PLS] ⚠ Routes not registered: {e}")
 
+# Media Loader routes: separate module, separate call. The Stack's route file
+# is never touched, so an upstream refresh of uls_routes.py cannot break this.
+if _MEDIA_OK:
+    try:
+        from .nodes.ph_media_routes import register_media_routes
+        register_media_routes()
+    except Exception as e:
+        print(f"[PLS] ⚠ Media routes not registered: {e}")
+
 _node_count = len(NODE_CLASS_MAPPINGS)
 _bridge_str = "✅" if _BRIDGE_OK else "⚠ unavailable"
 print(f"""
 ⚡ ============================================================
-   Polyhedron LoRA Stack  v361
+   Polyhedron Suite  v362
    {_node_count} Nodes  |  Bridge: {_bridge_str}
 ⚡ ============================================================
 """)
