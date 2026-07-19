@@ -1,7 +1,7 @@
 [project]
 name = "polyhedron-lora-stack"
-version = "3.61.0"
-description = "Group-aware LoRA management for ComfyUI: stack 10-25 LoRAs with per-group merge modes (SEQ/CONCAT/DARE), per-row decoupled CLIP strength, Trim & Resolve cleanup switches against multi-LoRA interference, thumbnails, trigger words, Civitai fetch, a dedicated Accelerator engine and a passive Merge Analyzer."
+version = "3.62.0"
+description = "The Polyhedron Suite for ComfyUI. Group-aware LoRA management: stack 10-25 LoRAs with per-group merge modes (SEQ/CONCAT/DARE), per-row decoupled CLIP strength, Trim & Resolve cleanup switches against multi-LoRA interference, thumbnails, trigger words, Civitai fetch, a dedicated Accelerator engine and a passive Merge Analyzer. Plus media I/O: a pinned-folder Media Loader (images, video, audio, batch modes) and a unified Save node for stills, video and audio."
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
 
@@ -20,6 +20,14 @@ cli = [
     "Pillow>=9.0.0",
     "requests>=2.28.0",
 ]
+# Media Loader / Save extras. Both nodes run without these: OpenCV only adds
+# video thumbnails and the dimension probe, and PyAV is already shipped by
+# recent ComfyUI builds (it is listed for older ones). Imported lazily, so a
+# missing package degrades one feature and never blocks a load.
+media = [
+    "opencv-python>=4.6.0",
+    "av>=10.0.0",
+]
 
 [project.urls]
 Repository = "https://github.com/PolyhedronAI/ComfyUI-PolyhedronLoRAStack"
@@ -28,6 +36,6 @@ Documentation = "https://github.com/PolyhedronAI/ComfyUI-PolyhedronLoRAStack#rea
 
 [tool.comfy]
 PublisherId = "polyhedron"
-DisplayName = "Polyhedron LoRA Stack"
+DisplayName = "Polyhedron Suite"
 Icon = "https://raw.githubusercontent.com/PolyhedronAI/ComfyUI-PolyhedronLoRAStack/main/assets/icon.png"
 Banner = "https://raw.githubusercontent.com/PolyhedronAI/ComfyUI-PolyhedronLoRAStack/main/assets/banner.png"
